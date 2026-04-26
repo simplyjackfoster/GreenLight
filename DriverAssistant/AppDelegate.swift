@@ -23,7 +23,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     private func configureAudioSession() {
         do {
-            try AVAudioSession.sharedInstance().setCategory(.ambient, options: .mixWithOthers)
+            // FIXED: ambient mode is suppressed by hardware silent switch; use playback for audible safety chime.
+            try AVAudioSession.sharedInstance().setCategory(
+                .playback,
+                mode: .default,
+                options: [.duckOthers]
+            )
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
             print("[AppDelegate] Audio session configuration failed: \(error)")

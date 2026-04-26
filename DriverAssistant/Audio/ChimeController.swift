@@ -23,6 +23,8 @@ final class ChimeController {
     func play() {
         guard !isMuted, let player else { return }
         player.currentTime = 0
-        player.play()
+        if !player.play() {
+            print("[ChimeController] play() returned false; check audio route/session state")
+        }
     }
 }
