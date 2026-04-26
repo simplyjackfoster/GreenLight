@@ -33,6 +33,7 @@ class ViewControllerDetection: ViewController {
                     self.handleResults(results)
                 }
             }
+            request.imageCropAndScaleOption = .scaleFill
             requests = [request]
         } catch {
             print("[ViewControllerDetection] Model setup failed: \(error)")
@@ -84,10 +85,10 @@ class ViewControllerDetection: ViewController {
 
             let objectBounds = VNImageRectForNormalizedRect(box, Int(bufferSize.width), Int(bufferSize.height))
 
-            if UserDefaults.standard.bool(forKey: "visualizeDetections") {
+            if boolDefaultTrue("visualizeDetections") {
                 detectionOverlay.addSublayer(drawBox(objectBounds, label: label))
             }
-            if UserDefaults.standard.bool(forKey: "showLabels") {
+            if boolDefaultTrue("showLabels") {
                 detectionOverlay.addSublayer(drawLabel(objectBounds, label: label, confidence: top.confidence))
             }
         }
@@ -125,7 +126,9 @@ class ViewControllerDetection: ViewController {
         super.setupAVCapture()
         setupLayers()
         updateLayerGeometry()
-        _ = setupVision()
+        if let error = setupVision() {
+            showModelUnavailableAlert(error)
+        }
         startCaptureSession()
     }
 
@@ -192,5 +195,25 @@ class ViewControllerDetection: ViewController {
         layer.position = CGPoint(x: bounds.minX + width / 2, y: bounds.maxY + 18)
         layer.setAffineTransform(CGAffineTransform(scaleX: 1, y: -1))
         return layer
+    }
+
+    // FIXED: treat missing key as enabled so first launch still renders detections.
+    private func boolDefaultTrue(_ key: String) -> Bool {
+        if UserDefaults.standard.object(forKey: key) == nil {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: key)
+    }
+
+    private func showModelUnavailableAlert(_ error: NSError) {
+        DispatchQueue.main.async {
+            let alert = UIAlertController(
+                title: "Model Unavailable",
+                message: "Could not load the detection model.\\n\\n\(error.localizedDescription)",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            self.present(alert, animated: true)
+        }
     }
 }

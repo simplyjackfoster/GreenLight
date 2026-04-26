@@ -8,6 +8,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
+        registerUserDefaults()
         configureAudioSession()
         return true
     }
@@ -27,5 +28,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         } catch {
             print("[AppDelegate] Audio session configuration failed: \(error)")
         }
+    }
+
+    // FIXED: ensure first-launch defaults don't evaluate to false when read with UserDefaults.bool(forKey:)
+    private func registerUserDefaults() {
+        UserDefaults.standard.register(defaults: [
+            "visualizeDetections": true,
+            "showLabels": true,
+            "showSpeed": true,
+            "iouThreshold": 0.6,
+            "chimeEnabled": true,
+            "confidenceSensitivity": "Medium",
+            "metricUnits": false,
+        ])
     }
 }
