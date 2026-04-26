@@ -103,6 +103,7 @@ class ViewControllerDetection: ViewController {
         chimeController.isMuted = !detectionState.isChimeEnabled
         if shouldChime {
             chimeController.play()
+            detectionState.triggerGreenTransitionCue()
         }
     }
 

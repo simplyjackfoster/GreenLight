@@ -17,6 +17,23 @@ struct HUDView: View {
                 }
 
             VStack {
+                if state.showGreenTransitionCue {
+                    HStack {
+                        Spacer()
+                        Label("Green light detected", systemImage: "bell.fill")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color.green.opacity(0.85))
+                            .clipShape(Capsule())
+                            .shadow(color: .black.opacity(0.35), radius: 10, x: 0, y: 4)
+                        Spacer()
+                    }
+                    .padding(.top, 24)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
                 if showSpeed {
                     HStack {
                         Spacer()
@@ -51,5 +68,6 @@ struct HUDView: View {
             }
         }
         .navigationBarHidden(true)
+        .animation(.easeOut(duration: 0.25), value: state.showGreenTransitionCue)
     }
 }

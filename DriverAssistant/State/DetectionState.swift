@@ -8,6 +8,7 @@ final class DetectionState: NSObject, ObservableObject {
     static let shared = DetectionState()
 
     @Published var lightColor: DetectedLightColor = .unknown
+    @Published var showGreenTransitionCue: Bool = false
 
     @Published var speed: Double = 0.0
     @Published var speedUnit: String = "MPH"
@@ -38,6 +39,14 @@ final class DetectionState: NSObject, ObservableObject {
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
         locationManager.requestWhenInUseAuthorization()
         locationManager.startUpdatingLocation()
+    }
+
+    // FIXED: expose explicit visual cue for red->green transition so users get on-screen feedback with/without audio.
+    func triggerGreenTransitionCue() {
+        showGreenTransitionCue = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.25) { [weak self] in
+            self?.showGreenTransitionCue = false
+        }
     }
 }
 
