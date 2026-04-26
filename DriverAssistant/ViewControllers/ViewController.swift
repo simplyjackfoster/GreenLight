@@ -35,6 +35,7 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
         stopSign?.isHidden = true
 
 #if targetEnvironment(simulator)
+        setupSimulatorPlaceholder()
         return
 #else
         setupAVCapture()
@@ -149,5 +150,50 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
             alert.addAction(UIAlertAction(title: "OK", style: .cancel))
             self.present(alert, animated: true)
         }
+    }
+
+    // FIXED: simulator previously returned early with no camera setup and no fallback UI, causing white screen.
+    private func setupSimulatorPlaceholder() {
+        view.backgroundColor = .black
+        previewView?.backgroundColor = .black
+
+        let container = UIView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.backgroundColor = UIColor(white: 0.08, alpha: 1)
+        container.layer.cornerRadius = 14
+
+        let title = UILabel()
+        title.translatesAutoresizingMaskIntoConstraints = false
+        title.text = "Simulator Preview"
+        title.textColor = .white
+        title.font = UIFont.systemFont(ofSize: 24, weight: .semibold)
+        title.textAlignment = .center
+
+        let body = UILabel()
+        body.translatesAutoresizingMaskIntoConstraints = false
+        body.text = "Camera capture is unavailable in iOS Simulator.\nRun this on a physical iPhone to test live detection."
+        body.textColor = UIColor(white: 0.85, alpha: 1)
+        body.font = UIFont.systemFont(ofSize: 16, weight: .regular)
+        body.numberOfLines = 0
+        body.textAlignment = .center
+
+        view.addSubview(container)
+        container.addSubview(title)
+        container.addSubview(body)
+
+        NSLayoutConstraint.activate([
+            container.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
+            container.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
+            container.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+
+            title.topAnchor.constraint(equalTo: container.topAnchor, constant: 24),
+            title.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
+            title.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16),
+
+            body.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 14),
+            body.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
+            body.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16),
+            body.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -24),
+        ])
     }
 }
