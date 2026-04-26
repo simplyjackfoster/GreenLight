@@ -99,3 +99,72 @@ final class LightStateManager {
         }
     }
 }
+
+/// Observed-light fallback for noisy frame-to-frame transitions.
+/// Uses geometry-filtered light when available, but can fall back to any observed light.
+final class LightTransitionFallbackState {
+
+    let cooldownDuration: TimeInterval
+    let redMemoryDuration: TimeInterval
+
+    private var lastRedSeenAt: Date?
+    private var lastChimeAt: Date?
+
+    init(
+        cooldownDuration: TimeInterval = Constants.Chime.cooldownSeconds,
+        redMemoryDuration: TimeInterval = Constants.Chime.redMemorySeconds
+    ) {
+        self.cooldownDuration = cooldownDuration
+        self.redMemoryDuration = redMemoryDuration
+    }
+
+    @discardableResult
+    func update(
+        filteredLight: DetectedLightColor,
+        observedLight: DetectedLightColor,
+        isStationary: Bool,
+        now: Date = Date()
+    ) -> Bool {
+        let effectiveLight = effectiveLight(filteredLight: filteredLight, observedLight: observedLight)
+
+        if effectiveLight == .red {
+            lastRedSeenAt = now
+            return false
+        }
+
+        guard effectiveLight == .green, isStationary else { return false }
+
+        guard let lastRedSeenAt else { return false }
+        let elapsedSinceRed = now.timeIntervalSince(lastRedSeenAt)
+        guard elapsedSinceRed <= redMemoryDuration else {
+            self.lastRedSeenAt = nil
+            return false
+        }
+
+        if let lastChimeAt, now.timeIntervalSince(lastChimeAt) < cooldownDuration {
+            return false
+        }
+
+        self.lastChimeAt = now
+        self.lastRedSeenAt = nil
+        return true
+    }
+
+    func reset() {
+        lastRedSeenAt = nil
+        lastChimeAt = nil
+    }
+
+    private func effectiveLight(
+        filteredLight: DetectedLightColor,
+        observedLight: DetectedLightColor
+    ) -> DetectedLightColor {
+        if filteredLight == .red || filteredLight == .green {
+            return filteredLight
+        }
+        if observedLight == .red || observedLight == .green {
+            return observedLight
+        }
+        return .none
+    }
+}

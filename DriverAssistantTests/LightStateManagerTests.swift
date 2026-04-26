@@ -97,4 +97,66 @@ final class LightStateManagerTests: XCTestCase {
         _ = mgr.update(detectedLight: .green, isStationary: true, now: t1)
         XCTAssertTrue(mgr.update(detectedLight: .green, isStationary: true, now: t1))
     }
+
+    func testFallbackUsesObservedLightWhenFilteredMissing() {
+        let fallback = LightTransitionFallbackState(cooldownDuration: 20, redMemoryDuration: 8)
+        let t = Date()
+        XCTAssertFalse(fallback.update(
+            filteredLight: .none,
+            observedLight: .red,
+            isStationary: true,
+            now: t
+        ))
+        XCTAssertTrue(fallback.update(
+            filteredLight: .none,
+            observedLight: .green,
+            isStationary: true,
+            now: t.addingTimeInterval(1)
+        ))
+    }
+
+    func testFallbackRedMemoryExpires() {
+        let fallback = LightTransitionFallbackState(cooldownDuration: 20, redMemoryDuration: 3)
+        let t = Date()
+        _ = fallback.update(filteredLight: .none, observedLight: .red, isStationary: true, now: t)
+        XCTAssertFalse(fallback.update(
+            filteredLight: .none,
+            observedLight: .green,
+            isStationary: true,
+            now: t.addingTimeInterval(4)
+        ))
+    }
+
+    func testFallbackRespectsCooldownBetweenTransitions() {
+        let fallback = LightTransitionFallbackState(cooldownDuration: 20, redMemoryDuration: 8)
+        let t0 = Date()
+        _ = fallback.update(filteredLight: .none, observedLight: .red, isStationary: true, now: t0)
+        XCTAssertTrue(fallback.update(
+            filteredLight: .none,
+            observedLight: .green,
+            isStationary: true,
+            now: t0.addingTimeInterval(1)
+        ))
+
+        let t1 = t0.addingTimeInterval(5)
+        _ = fallback.update(filteredLight: .none, observedLight: .red, isStationary: true, now: t1)
+        XCTAssertFalse(fallback.update(
+            filteredLight: .none,
+            observedLight: .green,
+            isStationary: true,
+            now: t1.addingTimeInterval(1)
+        ))
+    }
+
+    func testFallbackPrefersFilteredLightOverObservedLight() {
+        let fallback = LightTransitionFallbackState(cooldownDuration: 20, redMemoryDuration: 8)
+        let t = Date()
+        _ = fallback.update(filteredLight: .red, observedLight: .none, isStationary: true, now: t)
+        XCTAssertTrue(fallback.update(
+            filteredLight: .green,
+            observedLight: .red,
+            isStationary: true,
+            now: t.addingTimeInterval(1)
+        ))
+    }
 }

@@ -13,8 +13,7 @@ class ViewControllerDetection: ViewController {
     private var requests = [VNRequest]()
     private var currentPixelBuffer: CVPixelBuffer?
     private var previousObservedLight: DetectedLightColor = .none
-    private var lastReliableLight: DetectedLightColor = .none
-    private var lastFallbackChimeAt: Date?
+    private let fallbackState = LightTransitionFallbackState()
 
     @discardableResult
     func setupVision() -> NSError? {
@@ -70,8 +69,10 @@ class ViewControllerDetection: ViewController {
         detectionOverlay.sublayers = nil
 
         let threshold = detectionState.sensitivity.confidenceThreshold
-        var bestLightColor: DetectedLightColor = .none
-        var bestConfidence: Float = 0
+        var bestFilteredLightColor: DetectedLightColor = .none
+        var bestFilteredConfidence: Float = 0
+        var bestObservedLightColor: DetectedLightColor = .none
+        var bestObservedConfidence: Float = 0
 
         for observation in results.compactMap({ $0 as? VNRecognizedObjectObservation }) {
             guard let top = observation.labels.first,
@@ -83,10 +84,17 @@ class ViewControllerDetection: ViewController {
             let lightColor = resolveTrafficLightColor(label: label, box: box)
             if lightColor != .unknown,
                lightColor != .none,
+               top.confidence > bestObservedConfidence {
+                bestObservedLightColor = lightColor
+                bestObservedConfidence = top.confidence
+            }
+
+            if lightColor != .unknown,
+               lightColor != .none,
                GeometryFilter.passes(normalizedBox: box),
-               top.confidence > bestConfidence {
-                bestLightColor = lightColor
-                bestConfidence = top.confidence
+               top.confidence > bestFilteredConfidence {
+                bestFilteredLightColor = lightColor
+                bestFilteredConfidence = top.confidence
             }
 
             let objectBounds = VNImageRectForNormalizedRect(box, Int(bufferSize.width), Int(bufferSize.height))
@@ -100,18 +108,22 @@ class ViewControllerDetection: ViewController {
         }
 
         let stateMachineChime = stateManager.update(
-            detectedLight: bestLightColor,
+            detectedLight: bestFilteredLightColor,
             isStationary: detectionState.isStationary
         )
 
-        // FIXED: add robust fallback for real-world model flicker between red and green frames.
-        let fallbackChime = fallbackTransitionChime(bestLightColor: bestLightColor)
+        // Keep chime reliable even when geometry-filtered frames flicker/miss intermittently.
+        let fallbackChime = fallbackState.update(
+            filteredLight: bestFilteredLightColor,
+            observedLight: bestObservedLightColor,
+            isStationary: detectionState.isStationary
+        )
 
-        // FIXED: show a visual cue for observed red->green transitions even when chime criteria are not met.
-        if previousObservedLight == .red && bestLightColor == .green {
+        // Show a visual cue for observed red->green transitions even when chime criteria are not met.
+        if previousObservedLight == .red && bestObservedLightColor == .green {
             detectionState.triggerGreenTransitionCue()
         }
-        previousObservedLight = bestLightColor
+        previousObservedLight = bestObservedLightColor
 
         detectionState.lightColor = stateManager.displayState
 
@@ -231,24 +243,5 @@ class ViewControllerDetection: ViewController {
             alert.addAction(UIAlertAction(title: "OK", style: .default))
             self.present(alert, animated: true)
         }
-    }
-
-    private func fallbackTransitionChime(bestLightColor: DetectedLightColor, now: Date = Date()) -> Bool {
-        if bestLightColor == .red {
-            lastReliableLight = .red
-            return false
-        }
-
-        guard bestLightColor == .green else { return false }
-        guard lastReliableLight == .red else { return false }
-
-        if let last = lastFallbackChimeAt,
-           now.timeIntervalSince(last) < Constants.Chime.cooldownSeconds {
-            return false
-        }
-
-        lastFallbackChimeAt = now
-        lastReliableLight = .green
-        return true
     }
 }

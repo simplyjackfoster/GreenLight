@@ -30,6 +30,7 @@ struct Constants {
 
     struct Chime {
         static let cooldownSeconds: TimeInterval = 20.0
+        static let redMemorySeconds: TimeInterval = 8.0
         static let resourceName = "chime"
     }
 
