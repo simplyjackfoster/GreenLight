@@ -1,160 +1,153 @@
-//
-//  ViewController.swift
-//  DriverAssistant
-//
-//  Created by David Kirchhoff on 2021-06-21.
-//
-
-import UIKit
 import AVFoundation
-import Vision
 import SwiftUI
+import UIKit
+import Vision
 
 class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
-    // Include SwiftUI views
-    let navigationView = UIHostingController(rootView: NavigationView())
-    let displayView = UIHostingController(rootView: DisplayView())
-    
+
+    private var hudHostController: UIHostingController<HUDView>?
+
     @IBOutlet weak var trafficLightRed: UIImageView!
     @IBOutlet weak var trafficLightGreen: UIImageView!
     @IBOutlet weak var stopSign: UIImageView!
     @IBOutlet weak private var previewView: UIView!
-    
+
     var bufferSize: CGSize = .zero
-    var rootLayer: CALayer! = nil
-    private let session = AVCaptureSession()
-    private var previewLayer: AVCaptureVideoPreviewLayer! = nil
-    private let videoDataOutput = AVCaptureVideoDataOutput()
-    private let videoDataOutputQueue = DispatchQueue(label: "VideoDataOutput", qos: .userInitiated, attributes: [], autoreleaseFrequency: .workItem)
-    
-    
-    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-    }
-    
-    
+    var rootLayer: CALayer!
+
+    let session = AVCaptureSession()
+    private var previewLayer: AVCaptureVideoPreviewLayer!
+    let videoDataOutput = AVCaptureVideoDataOutput()
+    let videoDataOutputQueue = DispatchQueue(
+        label: "com.driverassistant.VideoDataOutput",
+        qos: .userInitiated,
+        attributes: [],
+        autoreleaseFrequency: .workItem
+    )
+
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {}
+
     override func viewDidLoad() {
-        UIApplication.shared.isIdleTimerDisabled = true // Prevent the device from going to sleep
+        UIApplication.shared.isIdleTimerDisabled = true
         super.viewDidLoad()
-        
-        // Launch camera only if device is connected to allow for tests without device
-        if (TARGET_IPHONE_SIMULATOR == 0) {
-                setupAVCapture() // Preview stuff
-        }
-        
-        trafficLightRed.superview?.bringSubviewToFront(trafficLightRed)
-        trafficLightGreen.superview?.bringSubviewToFront(trafficLightGreen)
-        stopSign.superview?.bringSubviewToFront(stopSign)
+        trafficLightRed?.isHidden = true
+        trafficLightGreen?.isHidden = true
+        stopSign?.isHidden = true
+
+#if targetEnvironment(simulator)
+        return
+#else
+        setupAVCapture()
+#endif
     }
-       
-    
-    fileprivate func setupConstraints() {
-        navigationView.view.backgroundColor = UIColor.clear // Required to not hide other layers
-        navigationView.view.translatesAutoresizingMaskIntoConstraints = false
-        navigationView.view.topAnchor.constraint(equalTo: view.topAnchor).isActive = true
-        navigationView.view.bottomAnchor.constraint(equalTo: view.bottomAnchor).isActive = true
-        navigationView.view.leftAnchor.constraint(equalTo: view.leftAnchor).isActive = true
-        navigationView.view.rightAnchor.constraint(equalTo: view.rightAnchor).isActive = true
-    }
-    
-    
-    fileprivate func setupConstraintsDisplay() {
-        displayView.view.backgroundColor = UIColor.clear // Needed to not hide other layers
-        displayView.view.translatesAutoresizingMaskIntoConstraints = false
-        displayView.view.topAnchor.constraint(equalTo: view.topAnchor).isActive = true
-        displayView.view.bottomAnchor.constraint(equalTo: view.bottomAnchor).isActive = true
-        displayView.view.leftAnchor.constraint(equalTo: view.leftAnchor).isActive = true
-        displayView.view.rightAnchor.constraint(equalTo: view.rightAnchor).isActive = true
-    }
-    
-    
-    override func didReceiveMemoryWarning() {
-        super.didReceiveMemoryWarning()
-    }
-    
-    
+
     func setupAVCapture() {
-        var deviceInput: AVCaptureDeviceInput!
-        
-        // Select a video device, make an input
-        let videoDevice = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera], mediaType: .video, position: .back).devices.first // TODO: use back camera
-        
-        do {
-            deviceInput = try AVCaptureDeviceInput(device: videoDevice!)
-        } catch {
-            print("Could not create video device input: \(error)")
+        let discovery = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.builtInWideAngleCamera],
+            mediaType: .video,
+            position: .back
+        )
+
+        guard let videoDevice = discovery.devices.first else {
+            showCameraUnavailableAlert()
             return
         }
-        
-        // Begins list of configurations. They are applied after commitConfiguration.
+
+        let deviceInput: AVCaptureDeviceInput
+        do {
+            deviceInput = try AVCaptureDeviceInput(device: videoDevice)
+        } catch {
+            showCameraUnavailableAlert()
+            return
+        }
+
         session.beginConfiguration()
-        
-        // Add a video input
+        session.sessionPreset = .hd1280x720
+
         guard session.canAddInput(deviceInput) else {
-            print("Could not add video device input to the session")
             session.commitConfiguration()
             return
         }
         session.addInput(deviceInput)
-        if session.canAddOutput(videoDataOutput) {
-            session.addOutput(videoDataOutput)
-            // Add a video data output
-            videoDataOutput.alwaysDiscardsLateVideoFrames = true
-            videoDataOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)]
-            videoDataOutput.setSampleBufferDelegate(self, queue: videoDataOutputQueue)
-        }
-        else {
-            print("Could not add video data output to the session")
+
+        guard session.canAddOutput(videoDataOutput) else {
             session.commitConfiguration()
             return
         }
-        let captureConnection = videoDataOutput.connection(with: .video)
-                
-        // Always process the frames
-        captureConnection?.isEnabled = true
+        session.addOutput(videoDataOutput)
+
+        videoDataOutput.alwaysDiscardsLateVideoFrames = true
+        videoDataOutput.videoSettings = [
+            kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)
+        ]
+        videoDataOutput.setSampleBufferDelegate(self, queue: videoDataOutputQueue)
+
         do {
-            try  videoDevice!.lockForConfiguration()
-            let dimensions = CMVideoFormatDescriptionGetDimensions((videoDevice?.activeFormat.formatDescription)!)
-            
-            // Swap height and width because of input video orientation
+            try videoDevice.lockForConfiguration()
+            videoDevice.activeVideoMinFrameDuration = CMTime(value: 1, timescale: 15)
+            videoDevice.activeVideoMaxFrameDuration = CMTime(value: 1, timescale: 15)
+            let dimensions = CMVideoFormatDescriptionGetDimensions(videoDevice.activeFormat.formatDescription)
             bufferSize.width = CGFloat(dimensions.height)
             bufferSize.height = CGFloat(dimensions.width)
-            videoDevice!.unlockForConfiguration()
+            videoDevice.unlockForConfiguration()
         } catch {
-            print(error)
+            print("[ViewController] Device configuration failed: \(error)")
         }
-        
-        // Apply the configurations
+
         session.commitConfiguration()
+
         previewLayer = AVCaptureVideoPreviewLayer(session: session)
-        previewLayer.videoGravity = AVLayerVideoGravity.resizeAspectFill // Fill screen
-        
+        previewLayer.videoGravity = .resizeAspectFill
         rootLayer = previewView.layer
         previewLayer.frame = rootLayer.bounds
         rootLayer.addSublayer(previewLayer)
-        
-        // Show the current speed at the top of the screen
-        addChild(displayView)
-        view.addSubview(displayView.view)
-        setupConstraintsDisplay()
-        
-        // Add layers for display and navigation from SwiftUI
-        addChild(navigationView) // Allows embedding the custom SwiftUI view
-        view.addSubview(navigationView.view)
-        setupConstraints()
+
+        let hud = UIHostingController(rootView: HUDView())
+        hud.view.backgroundColor = .clear
+        hud.view.translatesAutoresizingMaskIntoConstraints = false
+        addChild(hud)
+        view.addSubview(hud.view)
+        NSLayoutConstraint.activate([
+            hud.view.topAnchor.constraint(equalTo: view.topAnchor),
+            hud.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            hud.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            hud.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+        ])
+        hud.didMove(toParent: self)
+        hudHostController = hud
     }
-    
-    
+
     func startCaptureSession() {
         session.startRunning()
     }
-    
-    
-    // Clean up capture setup
+
     func teardownAVCapture() {
-        previewLayer.removeFromSuperlayer()
+        previewLayer?.removeFromSuperlayer()
         previewLayer = nil
     }
-    
-    func captureOutput(_ captureOutput: AVCaptureOutput, didDrop didDropSampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+
+    func captureOutput(
+        _ captureOutput: AVCaptureOutput,
+        didDrop didDropSampleBuffer: CMSampleBuffer,
+        from connection: AVCaptureConnection
+    ) {
+        // Frame-drop logging can be enabled during debugging.
+    }
+
+    private func showCameraUnavailableAlert() {
+        DispatchQueue.main.async {
+            let alert = UIAlertController(
+                title: "Camera Unavailable",
+                message: "Driver Assistant requires camera access. Please enable it in Settings.",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "Open Settings", style: .default) { _ in
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            })
+            alert.addAction(UIAlertAction(title: "OK", style: .cancel))
+            self.present(alert, animated: true)
+        }
     }
 }

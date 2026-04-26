@@ -1,85 +1,51 @@
-//
-//  SettingsView.swift
-//  DriverAssistant
-//
-//  Created by David Kirchhoff on 2021-06-10.
-//
-
 import SwiftUI
 
-struct Settings: View {
-    @State private var shareData = false
-    @AppStorage("visualizeDetections") var visualizeDetections = true
-    @AppStorage("showLabels") var showLabels = true
-    @AppStorage("metricUnits") var metricUnits = false
-    @AppStorage("showSpeed") var showSpeed = true
-    @AppStorage("iouThreshold") var iouThreshold = 0.6
-    @AppStorage("confidenceThreshold") var confidenceThreshold = 0.45
+struct SettingsView: View {
+
+    @ObservedObject private var state = DetectionState.shared
+
+    @AppStorage("visualizeDetections") private var visualizeDetections = true
+    @AppStorage("showLabels") private var showLabels = true
+    @AppStorage("showSpeed") private var showSpeed = true
+    @AppStorage("iouThreshold") private var iouThreshold: Double = 0.6
+
     var body: some View {
-        VStack {
-            List {
-                Text("Basic settings")
-                    .font(.title)
-                    .padding(0.5)
-                HStack(alignment: .center) {
-                    Toggle(isOn: $showSpeed) {
-                        Text("Show speed")
-                        .font(.body)
+        Form {
+            Section(header: Text("Green Light Chime")) {
+                Toggle("Enable chime", isOn: $state.isChimeEnabled)
+                Picker("Sensitivity", selection: $state.sensitivity) {
+                    ForEach(ConfidenceSensitivity.allCases) { level in
+                        Text(level.rawValue).tag(level)
                     }
                 }
-                HStack(alignment: .center) {
-                    Toggle(isOn: $metricUnits) {
-                        Text("Use metric units")
-                        .font(.body)
-                    }
-                }
-                Text("Detector settings")
-                    .font(.title)
-                    .padding(EdgeInsets(top: 40, leading: 0, bottom: 0, trailing: 0))
-                HStack {
-                    Toggle(isOn: $visualizeDetections) {
-                        Text("Show bounding boxes")
-                        .font(.body)
-                    }
-                }
-                HStack {
-                    Toggle(isOn: $showLabels) {
-                        Text("Show labels")
-                        .font(.body)
-                    }
-                }
-                VStack {
+                .pickerStyle(.segmented)
+            }
+
+            Section(header: Text("Display")) {
+                Toggle("Show speed", isOn: $showSpeed)
+                Toggle("Use metric units", isOn: $state.useMetricUnits)
+                Toggle("Show bounding boxes", isOn: $visualizeDetections)
+                Toggle("Show labels", isOn: $showLabels)
+            }
+
+            Section(header: Text("Detector (Advanced)")) {
+                VStack(alignment: .leading) {
+                    Text("IoU threshold: \(iouThreshold, specifier: "%.2f")")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                     Slider(value: $iouThreshold, in: 0...1)
-                    Text("IoU threshold")
-                        .font(.body)
-                }
-                VStack {
-                    Slider(value: $confidenceThreshold, in: 0...1)
-                        Text("Confidence threshold")
-                        .font(.body)
-                }
-    
-                Text("Further")
-                    .font(.title)
-                    .padding(EdgeInsets(top: 40, leading: 0, bottom: 0, trailing: 0))
-                NavigationLink(destination: WebView()) {
-                Text("Learn how detection works")
-                    .font(.body)
                 }
             }
-            Spacer()
-            
+
+            Section(header: Text("About")) {
+                NavigationLink("How detection works") {
+                    WebView()
+                }
+                Text("All processing is on-device. No data leaves your phone.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
         }
-        .navigationBarTitle("Settings")
-    }
-        
-        
-    
-}
-
-struct Settings_Previews: PreviewProvider {
-    static var previews: some View {
-        Settings()
+        .navigationTitle("Settings")
     }
 }
-

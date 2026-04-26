@@ -39,9 +39,8 @@ struct WebView: View {
         }
 }
 
-struct NavigationView_Previews: PreviewProvider {
+struct WebView_Previews: PreviewProvider {
     static var previews: some View {
         WebView()
     }
 }
-
