@@ -1,0 +1,37 @@
+name: CocoTraffic Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  coco-traffic-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pillow pandas tqdm
+
+      - name: Compile CocoTraffic scripts
+        run: |
+          python -m py_compile cocoTraffic/api/make_datasets.py
+          python -m py_compile cocoTraffic/api/make_yolo_labels.py
+          python -m py_compile cocoTraffic/tools/makesense/append_LISA_to_coco_splits.py
+          python -m py_compile cocoTraffic/tools/s2tld_extractor.py
+          python -m py_compile cocoTraffic/tools/merge_datasets.py
+          python -m py_compile cocoTraffic/tools/pipeline_check.py
+
+      - name: Run synthetic smoke pipeline
+        run: |
+          bash cocoTraffic/tools/ci/smoke_pipeline.sh

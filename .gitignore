@@ -91,3 +91,14 @@ iOSInjectionProject/
 
 # Other
 .DS_Store
+
+# Python dataset tooling artifacts
+__pycache__/
+*.pyc
+export/datasets/ci-smoke/
+export/datasets/crops/
+export/datasets/merged/
+export/models/checkpoints/*
+export/models/coreml/*
+!export/models/checkpoints/.gitkeep
+!export/models/coreml/.gitkeep

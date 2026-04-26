@@ -45,6 +45,17 @@ We use a [yolov5s](https://github.com/ultralytics/yolov5) model which we trained
 # Using a CoreML model in the app
 This section is for those interested in modifying the app.
 
+## Data Pipeline Quickstart
+For a reproducible dataset and model handoff workflow, see:
+
+- `docs/data-pipeline.md`
+
+It includes:
+- CI smoke test commands
+- Stable artifact paths under `export/datasets` and `export/models`
+- Merge/validation steps
+- CoreML install path into `DriverAssistant/Models`
+
 ## Exporting the YOLOv5 model into CoreML
 Although there is an export function provided by Glenn Jocher and the YOLOv5 team, the trace function used in it does not export many of the post-processing steps such as adjusting the coordinates to be relative to the image rather than the grid cell. Fortunately, Leon de Andrade and Dennis Post (Thank you very much) have provided a repo to export the YOLOv5 model with all of these post-processing steps [here](https://github.com/dbsystel/yolov5-coreml-tools).
 
