@@ -13,6 +13,8 @@ class ViewControllerDetection: ViewController {
     private var requests = [VNRequest]()
     private var currentPixelBuffer: CVPixelBuffer?
     private var previousObservedLight: DetectedLightColor = .none
+    private var lastReliableLight: DetectedLightColor = .none
+    private var lastFallbackChimeAt: Date?
 
     @discardableResult
     func setupVision() -> NSError? {
@@ -97,10 +99,13 @@ class ViewControllerDetection: ViewController {
             }
         }
 
-        let shouldChime = stateManager.update(
+        let stateMachineChime = stateManager.update(
             detectedLight: bestLightColor,
             isStationary: detectionState.isStationary
         )
+
+        // FIXED: add robust fallback for real-world model flicker between red and green frames.
+        let fallbackChime = fallbackTransitionChime(bestLightColor: bestLightColor)
 
         // FIXED: show a visual cue for observed red->green transitions even when chime criteria are not met.
         if previousObservedLight == .red && bestLightColor == .green {
@@ -111,7 +116,7 @@ class ViewControllerDetection: ViewController {
         detectionState.lightColor = stateManager.displayState
 
         chimeController.isMuted = !detectionState.isChimeEnabled
-        if shouldChime {
+        if stateMachineChime || fallbackChime {
             chimeController.play()
             detectionState.triggerGreenTransitionCue()
         }
@@ -226,5 +231,24 @@ class ViewControllerDetection: ViewController {
             alert.addAction(UIAlertAction(title: "OK", style: .default))
             self.present(alert, animated: true)
         }
+    }
+
+    private func fallbackTransitionChime(bestLightColor: DetectedLightColor, now: Date = Date()) -> Bool {
+        if bestLightColor == .red {
+            lastReliableLight = .red
+            return false
+        }
+
+        guard bestLightColor == .green else { return false }
+        guard lastReliableLight == .red else { return false }
+
+        if let last = lastFallbackChimeAt,
+           now.timeIntervalSince(last) < Constants.Chime.cooldownSeconds {
+            return false
+        }
+
+        lastFallbackChimeAt = now
+        lastReliableLight = .green
+        return true
     }
 }
