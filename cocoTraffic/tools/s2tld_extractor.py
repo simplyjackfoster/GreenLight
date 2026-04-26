@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 import random
+import sys
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -14,11 +15,15 @@ from PIL import Image
 from tqdm import tqdm
 
 BASE_DIR = Path(__file__).resolve().parents[1]
+MIN_PYTHON = (3, 10)
 DEFAULT_MIN_BOX_SIZE = 400.0
 DEFAULT_PADDING = 0.15
 DEFAULT_CROP_SIZE = 64
 DEFAULT_SPLIT = 0.85
 SPLIT_SEED = 1881
+DEFAULT_PROGRESS = True
+TRAIN_SPLIT = "train"
+VAL_SPLIT = "val"
 
 CLASS_MAP = {
     "red": "red",
@@ -29,6 +34,11 @@ CLASS_MAP = {
 }
 
 logger = logging.getLogger(__name__)
+
+try:
+    BILINEAR_RESAMPLE = Image.Resampling.BILINEAR
+except AttributeError:
+    BILINEAR_RESAMPLE = Image.BILINEAR
 
 
 def bbox_area(box: Tuple[int, int, int, int]) -> float:
@@ -56,7 +66,7 @@ def crop_bbox(image: Image.Image, box: Tuple[int, int, int, int], padding: float
     if cy2 <= cy1:
         cy2 = clamp(cy1 + 1, 1, image.height)
 
-    return image.crop((cx1, cy1, cx2, cy2)).resize((crop_size, crop_size), Image.BILINEAR)
+    return image.crop((cx1, cy1, cx2, cy2)).resize((crop_size, crop_size), BILINEAR_RESAMPLE)
 
 
 def parse_xml(xml_path: Path) -> Tuple[str, List[Tuple[str, Tuple[int, int, int, int]]]]:
@@ -66,6 +76,7 @@ def parse_xml(xml_path: Path) -> Tuple[str, List[Tuple[str, Tuple[int, int, int,
     filename = root.findtext("filename")
     if not filename:
         filename = xml_path.with_suffix(".jpg").name
+    filename = Path(filename).name
 
     objects: List[Tuple[str, Tuple[int, int, int, int]]] = []
     for obj in root.findall("object"):
@@ -83,6 +94,10 @@ def parse_xml(xml_path: Path) -> Tuple[str, List[Tuple[str, Tuple[int, int, int,
             ymax = int(float(bnd.findtext("ymax", "0")))
         except ValueError:
             continue
+        if xmax < xmin:
+            xmin, xmax = xmax, xmin
+        if ymax < ymin:
+            ymin, ymax = ymax, ymin
         objects.append((mapped, (xmin, ymin, xmax, ymax)))
 
     return filename, objects
@@ -93,7 +108,7 @@ def split_assignments(image_names: Sequence[str], split: float) -> Dict[str, str
     random.seed(SPLIT_SEED)
     random.shuffle(items)
     cutoff = int(len(items) * split)
-    return {name: ("train" if i < cutoff else "val") for i, name in enumerate(items)}
+    return {name: (TRAIN_SPLIT if i < cutoff else VAL_SPLIT) for i, name in enumerate(items)}
 
 
 def run(
@@ -103,14 +118,27 @@ def run(
     padding: float,
     crop_size: int,
     split: float,
+    show_progress: bool,
 ) -> Counter:
+    if not input_dir.exists():
+        logger.error("Input directory does not exist: %s", input_dir)
+        return Counter()
+    if split <= 0.0 or split >= 1.0:
+        raise ValueError(f"--split must be between 0 and 1 (exclusive), got {split}")
+    if min_box_size < 0:
+        raise ValueError(f"--min-box-size must be non-negative, got {min_box_size}")
+    if padding < 0:
+        raise ValueError(f"--padding must be non-negative, got {padding}")
+    if crop_size <= 0:
+        raise ValueError(f"--crop-size must be positive, got {crop_size}")
+
     xml_files = sorted(input_dir.glob("*.xml"))
     if not xml_files:
         logger.error("No XML files found in %s", input_dir)
         return Counter()
 
     by_image: Dict[str, List[Tuple[str, Tuple[int, int, int, int]]]] = defaultdict(list)
-    for xml_path in tqdm(xml_files, desc="Parse S2TLD XML", disable=not logger.isEnabledFor(logging.INFO)):
+    for xml_path in tqdm(xml_files, desc="Parse S2TLD XML", disable=not show_progress):
         try:
             filename, objects = parse_xml(xml_path)
         except ET.ParseError as exc:
@@ -121,7 +149,7 @@ def run(
     assignments = split_assignments(list(by_image.keys()), split)
     counts: Counter = Counter()
 
-    for filename in tqdm(sorted(by_image.keys()), desc="Export S2TLD crops", disable=not logger.isEnabledFor(logging.INFO)):
+    for filename in tqdm(sorted(by_image.keys()), desc="Export S2TLD crops", disable=not show_progress):
         image_path = input_dir / filename
         if not image_path.exists():
             logger.warning("Missing image file for XML entry: %s", image_path)
@@ -156,6 +184,9 @@ def log_distribution(counts: Counter) -> None:
 
 
 if __name__ == "__main__":
+    if sys.version_info < MIN_PYTHON:
+        raise SystemExit(f"Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]}+ is required.")
+
     parser = argparse.ArgumentParser(description="Extract S2TLD crops into train/val/class folders")
     parser.add_argument("--input", default=str(BASE_DIR / "tools" / "s2tld"), help="Input directory containing XML and image files")
     parser.add_argument("--output", default=str(BASE_DIR / "labels" / "s2tld"), help="Output root directory")
@@ -165,6 +196,7 @@ if __name__ == "__main__":
     parser.add_argument("--crop-size", type=int, default=DEFAULT_CROP_SIZE, help="Crop output size")
     parser.add_argument("--split", type=float, default=DEFAULT_SPLIT, help="Train split ratio")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
+    parser.add_argument("--no-progress", action="store_true", help="Disable tqdm progress bars")
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -172,12 +204,17 @@ if __name__ == "__main__":
         format="%(levelname)s:%(name)s:%(message)s",
     )
 
-    counts = run(
-        input_dir=Path(args.input),
-        output_dir=Path(args.output),
-        min_box_size=args.min_box_size,
-        padding=args.padding,
-        crop_size=args.crop_size,
-        split=args.split,
-    )
+    try:
+        counts = run(
+            input_dir=Path(args.input),
+            output_dir=Path(args.output),
+            min_box_size=args.min_box_size,
+            padding=args.padding,
+            crop_size=args.crop_size,
+            split=args.split,
+            show_progress=DEFAULT_PROGRESS and not args.no_progress,
+        )
+    except ValueError as exc:
+        logger.error("%s", exc)
+        raise SystemExit(1) from exc
     log_distribution(counts)

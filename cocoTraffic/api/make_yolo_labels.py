@@ -10,6 +10,7 @@ import csv
 import json
 import logging
 import random
+import sys
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
@@ -19,11 +20,21 @@ from tqdm import tqdm
 
 # FIXED: derive paths from script location instead of hardcoded ../ paths
 BASE_DIR = Path(__file__).resolve().parents[1]
+MIN_PYTHON = (3, 10)
 DEFAULT_MIN_BOX_SIZE = 400.0
 DEFAULT_PADDING = 0.15
 DEFAULT_CROP_SIZE = 64
 DEFAULT_SPLIT = 0.85
 SPLIT_SEED = 1881
+DEFAULT_PROGRESS = True
+OUTPUT_FORMATS = ("yolo", "crops")
+TRAIN_SPLIT = "train"
+VAL_SPLIT = "val"
+
+try:
+    BILINEAR_RESAMPLE = Image.Resampling.BILINEAR
+except AttributeError:
+    BILINEAR_RESAMPLE = Image.BILINEAR
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +70,7 @@ CANONICAL_CLASS_ALIASES = {
     "traffic light": "traffic_light",
     "traffic_light": "traffic_light",
 }
+SUPPORTED_EXPORT_CLASSES = tuple(sorted({value for value in CANONICAL_CLASS_ALIASES.values()}))
 
 
 def validate_or_warn(condition: bool, message: str, strict: bool = False) -> None:
@@ -73,8 +85,14 @@ def validate_or_warn(condition: bool, message: str, strict: bool = False) -> Non
 class Dataset:
     def __init__(self, path: str, filename: str, strict: bool = False) -> None:
         self.filename = filename
-        with open(Path(path) / f"{filename}.json", "r", encoding="utf-8") as f:
-            anns = json.load(f)
+        annotation_path = Path(path) / f"{filename}.json"
+        try:
+            with open(annotation_path, "r", encoding="utf-8") as f:
+                anns = json.load(f)
+        except FileNotFoundError as exc:
+            raise FileNotFoundError(f"Annotation file not found: {annotation_path}") from exc
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Annotation file is not valid JSON: {annotation_path}") from exc
 
         self.img_ids_to_ann_ids: Dict[Any, List[Any]] = defaultdict(list)
         self.ann_id_to_anns: Dict[Any, Dict[str, Any]] = {}
@@ -123,7 +141,15 @@ def normalize_class_name(raw: str) -> str:
 def parse_requested_classes(classes: Optional[Sequence[str]]) -> Optional[Set[str]]:
     if not classes:
         return None
-    return {normalize_class_name(c) for c in classes}
+    parsed = {normalize_class_name(c) for c in classes}
+    unknown = sorted([name for name in parsed if name not in SUPPORTED_EXPORT_CLASSES])
+    if unknown:
+        raise ValueError(
+            "Unknown class(es) requested: "
+            + ", ".join(unknown)
+            + f". Supported classes: {', '.join(SUPPORTED_EXPORT_CLASSES)}"
+        )
+    return parsed
 
 
 def box_coco_to_yolo(bbox_coco: Sequence[float], img: Dict[str, Any]) -> List[float]:
@@ -187,7 +213,7 @@ def crop_bbox(image: Image.Image, bbox: Sequence[float], padding: float, crop_si
         x2 = clamp(x1 + 1, 1, image.width)
     if y2 <= y1:
         y2 = clamp(y1 + 1, 1, image.height)
-    return image.crop((x1, y1, x2, y2)).resize((crop_size, crop_size), Image.BILINEAR)
+    return image.crop((x1, y1, x2, y2)).resize((crop_size, crop_size), BILINEAR_RESAMPLE)
 
 
 def image_split(img_ids: Sequence[Any], split: float) -> Dict[Any, str]:
@@ -195,7 +221,7 @@ def image_split(img_ids: Sequence[Any], split: float) -> Dict[Any, str]:
     random.seed(SPLIT_SEED)
     random.shuffle(ids)
     cut = int(len(ids) * split)
-    return {img_id: ("train" if idx < cut else "val") for idx, img_id in enumerate(ids)}
+    return {img_id: (TRAIN_SPLIT if idx < cut else VAL_SPLIT) for idx, img_id in enumerate(ids)}
 
 
 def export_yolo(
@@ -205,11 +231,12 @@ def export_yolo(
     requested_classes: Optional[Set[str]],
     min_box_size: float,
     strict: bool,
+    show_progress: bool,
 ) -> Dict[str, int]:
     class_counts: Dict[str, int] = defaultdict(int)
     skipped_images = 0
 
-    for img_id in tqdm(img_ids, desc="Export YOLO labels", disable=not logger.isEnabledFor(logging.INFO)):
+    for img_id in tqdm(img_ids, desc="Export YOLO labels", disable=not show_progress):
         filename = f"{str(img_id)}.txt" if "--" in str(img_id) else f"{str(img_id)}.txt".zfill(16)
         anns = data.get_annotations(img_id)
         if len(anns) == 0:
@@ -255,12 +282,13 @@ def export_crops(
     padding: float,
     crop_size: int,
     split: float,
+    show_progress: bool,
 ) -> Dict[str, int]:
     split_map = image_split(img_ids, split)
     class_counts: Dict[str, int] = defaultdict(int)
     missing_images = 0
 
-    for img_id in tqdm(img_ids, desc="Export crops", disable=not logger.isEnabledFor(logging.INFO)):
+    for img_id in tqdm(img_ids, desc="Export crops", disable=not show_progress):
         anns = data.get_annotations(img_id)
         if not anns:
             continue
@@ -311,7 +339,17 @@ def run(
     crop_size: int,
     split: float,
     strict: bool,
+    show_progress: bool,
 ) -> None:
+    if split <= 0.0 or split >= 1.0:
+        raise ValueError(f"--split must be between 0 and 1 (exclusive), got {split}")
+    if min_box_size < 0:
+        raise ValueError(f"--min-box-size must be non-negative, got {min_box_size}")
+    if crop_size <= 0:
+        raise ValueError(f"--crop-size must be positive, got {crop_size}")
+    if padding < 0:
+        raise ValueError(f"--padding must be non-negative, got {padding}")
+
     filename = f"instances_{dataset_name}"
     data = Dataset(str(annotations_dir), filename, strict=strict)
     img_ids = data.get_image_ids()
@@ -325,8 +363,11 @@ def run(
             requested_classes=requested_classes,
             min_box_size=min_box_size,
             strict=strict,
+            show_progress=show_progress,
         )
     else:
+        if not images_dir.exists():
+            raise FileNotFoundError(f"Images directory does not exist: {images_dir}")
         class_counts = export_crops(
             data=data,
             img_ids=img_ids,
@@ -338,25 +379,32 @@ def run(
             padding=padding,
             crop_size=crop_size,
             split=split,
+            show_progress=show_progress,
         )
 
     log_distribution(class_counts)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    if sys.version_info < MIN_PYTHON:
+        raise SystemExit(f"Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]}+ is required.")
+
+    parser = argparse.ArgumentParser(
+        description="Generate YOLO labels or classifier crops from COCO Traffic Plus annotations."
+    )
     parser.add_argument("--input", default=str(BASE_DIR / "images"), help="Input images directory")
     parser.add_argument("--output", default=str(BASE_DIR / "labels"), help="Output directory")
     parser.add_argument("--annotations", default=str(BASE_DIR / "annotations"), help="COCO annotations directory")
     parser.add_argument("--dataset-name", default="val_new_images", help="Dataset suffix used in instances_<dataset>.json")
     parser.add_argument("--classes", nargs="+", default=None, help="Class names to export (e.g. --classes red green)")
     parser.add_argument("--min-box-size", type=float, default=DEFAULT_MIN_BOX_SIZE, help="Minimum bbox area in pixels^2")
-    parser.add_argument("--output-format", choices=["yolo", "crops"], default="yolo", help="Output format")
+    parser.add_argument("--output-format", choices=OUTPUT_FORMATS, default="yolo", help="Output format")
     parser.add_argument("--padding", type=float, default=DEFAULT_PADDING, help="Crop padding as a fraction")
     parser.add_argument("--crop-size", type=int, default=DEFAULT_CROP_SIZE, help="Square output crop dimension")
     parser.add_argument("--split", type=float, default=DEFAULT_SPLIT, help="Train split ratio for crop export")
     parser.add_argument("--strict", action="store_true", help="Fail on validation mismatches instead of warning")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
+    parser.add_argument("--no-progress", action="store_true", help="Disable tqdm progress bars")
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -364,16 +412,21 @@ if __name__ == "__main__":
         format="%(levelname)s:%(name)s:%(message)s",
     )
 
-    run(
-        annotations_dir=Path(args.annotations),
-        images_dir=Path(args.input),
-        dataset_name=args.dataset_name,
-        output_dir=Path(args.output),
-        classes=args.classes,
-        min_box_size=args.min_box_size,
-        output_format=args.output_format,
-        padding=args.padding,
-        crop_size=args.crop_size,
-        split=args.split,
-        strict=args.strict,
-    )
+    try:
+        run(
+            annotations_dir=Path(args.annotations),
+            images_dir=Path(args.input),
+            dataset_name=args.dataset_name,
+            output_dir=Path(args.output),
+            classes=args.classes,
+            min_box_size=args.min_box_size,
+            output_format=args.output_format,
+            padding=args.padding,
+            crop_size=args.crop_size,
+            split=args.split,
+            strict=args.strict,
+            show_progress=DEFAULT_PROGRESS and not args.no_progress,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        logger.error("%s", exc)
+        raise SystemExit(1) from exc
