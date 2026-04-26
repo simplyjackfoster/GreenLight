@@ -26,7 +26,10 @@ class ViewControllerDetection: ViewController {
         }
 
         do {
-            let mlModel = try MLModel(contentsOf: modelURL)
+            // FIXED: avoid ANE-only execution paths that reject some pooling kernels on-device.
+            let configuration = MLModelConfiguration()
+            configuration.computeUnits = .cpuAndGPU
+            let mlModel = try MLModel(contentsOf: modelURL, configuration: configuration)
             let visionModel = try VNCoreMLModel(for: mlModel)
             let request = VNCoreMLRequest(model: visionModel) { [weak self] request, _ in
                 guard let self, let results = request.results else { return }

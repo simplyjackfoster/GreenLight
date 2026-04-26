@@ -119,7 +119,13 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
     }
 
     func startCaptureSession() {
-        session.startRunning()
+        // FIXED: startRunning must not execute on main thread.
+        videoDataOutputQueue.async { [weak self] in
+            guard let self else { return }
+            if !self.session.isRunning {
+                self.session.startRunning()
+            }
+        }
     }
 
     func teardownAVCapture() {
