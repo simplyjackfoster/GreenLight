@@ -12,6 +12,7 @@ class ViewControllerDetection: ViewController {
     private var detectionOverlay: CALayer!
     private var requests = [VNRequest]()
     private var currentPixelBuffer: CVPixelBuffer?
+    private var previousObservedLight: DetectedLightColor = .none
 
     @discardableResult
     func setupVision() -> NSError? {
@@ -97,6 +98,12 @@ class ViewControllerDetection: ViewController {
             detectedLight: bestLightColor,
             isStationary: detectionState.isStationary
         )
+
+        // FIXED: show a visual cue for observed red->green transitions even when chime criteria are not met.
+        if previousObservedLight == .red && bestLightColor == .green {
+            detectionState.triggerGreenTransitionCue()
+        }
+        previousObservedLight = bestLightColor
 
         detectionState.lightColor = stateManager.displayState
 
