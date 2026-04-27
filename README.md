@@ -1,118 +1,89 @@
-# Driver Assistant
+# GreenLight
 
-![GitHub](https://img.shields.io/github/license/daved01/Driver-Assistant?style=plastic)
+An iPhone + CarPlay app that chimes when your traffic light turns green.
 
-**Please note:** This repo is not maintained.
+**Disclaimer:** *Do not rely on this app for safety. Keep your eyes on the road at all times. Local laws on mobile device use while driving vary by jurisdiction.*
 
+---
 
-A computer vision-based driver assistant which highlights important objects such as stop signs, traffic lights, and pedestrians. Traffic lights and stop signs are displayed as icons for better visibility next to the current speed.
+## How it works
 
-**Disclaimer:** *We made this app as a demonstration for how object detectors can be trained on a custom dataset in PyTorch and deployed in an iOS app. Do not rely on this app for safety in traffic and keep your eyes on the road at all times. Local restrictions on the usage of cell phones behind the wheel might exisit in your jurisdiction.*
+GreenLight runs a real-time traffic-light detection and state classification pipeline on-device:
 
-# Overview
-When launching the app, the vision model runs and the speed is calculated with GPS sensor data. You can tap the screen to show and hide the settings button at the bottom of the screen.
+1. Captures camera frames at 720p / 30 FPS via `AVCaptureSession`
+2. Detects traffic-light candidates with a YOLO detector (CoreML)
+3. Selects the driver-relevant light with `PrimaryLightSelector`
+4. Classifies its state (`red` / `green` / `yellow` / `off` / `hard_negative`) with a MobileNetV3 classifier (CoreML)
+5. Runs confidence fusion, temporal state machine, and a pre-chime validation burst
+6. Chimes only when all gates pass and the vehicle is stopped (< 2 mph)
 
-<center><img src="Images/app_views.png" alt="App views for detection and settings" width="600"/></center>
+See `ARCHITECTURE.md` for the full system design.
 
-The app has the following features.
-- Detects 14 classes of objects
-- Highlights stop signs and traffic lights, including their indication states
-- Displays the current speed
+---
 
-By default, the app displays bounding boxes, labels, and the speed. In settings, you can enable or disable displaying any of those options.. In addition to these features, you can adjust the object detector’s IOU threshold and confidence threshold in the settings.
+## Requirements
 
+- Xcode 15+
+- iPhone with iOS 16+ (physical device required for camera)
+- CarPlay-compatible head unit (optional)
 
+---
 
-# How to use
-This app requires XCode to install. To get started, clone this repository, open the project with `DriverAssistant.xcodeproj` and build it. Then connect your iPhone and select your iPhone under "device" in XCode and install the app. Make sure you select a valid profile under Signing & Capabilities, otherwise the app won’t compile.
+## Getting started
 
+```bash
+git clone https://github.com/simplyjackfoster/GreenLight.git
+open GreenLight.xcodeproj
+```
 
-# Implementation details
-The following are details regarding the implementation. The figure shows the different steps and how they relate to each other.
+Select your iPhone as the run target, configure signing under **Signing & Capabilities**, and build.
 
-![Overview](Images/overview.png)
+---
 
+## ML pipeline
 
-## Label data
-For the project we generated [COCO Traffic](https://github.com/daved01/cocoTraffic), a subset of the COCO dataset with the traffic lights relabelled with the indication states. The result is a dataset with 14 classes relevant to traffic scenes.
+The classifier is trained on crops from LISA, S2TLD, and BSTLD with a data quality loop (hard-negative mining, lighting/scale balancing).
 
+### Export a detector model
 
-## Developing the object detector
-We use a [yolov5s](https://github.com/ultralytics/yolov5) model which we trained for 75 epochs on the data. We did not evaluate the model on an independent test set which is why we don’t quantify the performance here.
-
-
-
-# Using a CoreML model in the app
-This section is for those interested in modifying the app.
-
-## Data Pipeline Quickstart
-For a reproducible dataset and model handoff workflow, see:
-
-- `docs/data-pipeline.md`
-
-It includes:
-- CI smoke test commands
-- Stable artifact paths under `export/datasets` and `export/models`
-- Merge/validation steps
-- CoreML install path into `DriverAssistant/Models`
-
-## Recommended: Export YOLO26n for iOS
-For current Ultralytics releases, use `yolo26n` and export directly to CoreML:
-
-```console
+```bash
 pip install -U ultralytics
 yolo export model=yolo26n.pt format=coreml nms=True int8=True
 ./scripts/install_coreml_model.sh yolo26n.mlpackage yolo26nTraffic
 ```
 
-If `yolo26n` export fails in your local environment, use:
+Fallback if `yolo26n` export fails:
 
-```console
+```bash
 yolo export model=yolo11n.pt format=coreml nms=True int8=True
 ./scripts/install_coreml_model.sh yolo11n.mlpackage yolo11nTraffic
 ```
 
-The app now looks for models in this order:
-1. `yolo26nTraffic` (`.mlmodelc`, then `.mlpackage`)
-2. `yolo11nTraffic` (`.mlmodelc`, then `.mlpackage`)
-3. `yolov8nTraffic` (`.mlmodelc`, then `.mlpackage`)
-4. `yolov5sTraffic` (`.mlmodelc`, then `.mlmodel`)
+The app loads models in priority order: `yolo26nTraffic` → `yolo11nTraffic` → `yolov8nTraffic`.
 
-## Exporting the YOLOv5 model into CoreML
-Although there is an export function provided by Glenn Jocher and the YOLOv5 team, the trace function used in it does not export many of the post-processing steps such as adjusting the coordinates to be relative to the image rather than the grid cell. Fortunately, Leon de Andrade and Dennis Post (Thank you very much) have provided a repo to export the YOLOv5 model with all of these post-processing steps [here](https://github.com/dbsystel/yolov5-coreml-tools).
+### Train the state classifier
 
-We have used their repo to export our model with some minor modifications. An older version of YOLOv5 (v4.0) has been provided with this repo for your convenience. The following instructions are based on the original [repo by Leon de Andrade](https://github.com/dbsystel/yolov5-coreml-tools).
-
-To export the model into CoreML, [install poetry](https://python-poetry.org/docs/). Poetry is used to install the required libraries to export the model. Export it by navigating to the export/yolov5-coreml-tools folder and then using the following command
-
-```console 
-$ poetry install
+```bash
+python dataset_pipeline.py --lisa-root export/datasets/raw/lisa \
+                            --s2tld-root export/datasets/raw/s2tld \
+                            --bstld-root export/datasets/raw/bstld
+python train.py
+python export_coreml.py
 ```
 
-CoreML tools only works for certain versions of PyTorch, so the following commands may be preferred
+See `docs/data-pipeline.md` for the full reproducible workflow.
 
-```
-$ pyenv install 3.8.6
-$ pyenv global 3.8.6
-$ poetry install
-```
+---
 
-In the src/coreml_export/main.py folder, you may want to change some of the variables such as
+## Ship gate
 
-* `classLabels` -> A list of the names of the classes. In COCO, there are 80 classes.
-* `anchor` -> This depends on the YOLOv5 model that you are using (x, m, l, xl). This can be found in the "yolo<model>.yml" file
-* `reverseModel` -> Some models reverse the order of the anchors and strides, so this is used to quickly switch reverse their order.
+| Metric | Threshold |
+|---|---|
+| False positives / hour | < 0.5 to ship, > 1.0 unshippable |
+| True positive rate (red→green) | > 92% |
 
-Then you may paste your .pt network model in the yolov5-coreml-tools folder. To finally run the export program, you may use the command
+---
 
-```
-$ poetry run coreml-export --model-input-path <path to .pt file>
-```
+## License
 
-And you can use the -h flag to get a list of the optional arguments for your export. The model will save your exported model in the output/models folder.
-
-
-## Integrating the model into Swift
-Once the exported model has been added to the project, you have to call it with the `VNVisionRequest`.
-
-Apple provides an [example](https://developer.apple.com/documentation/vision/recognizing_objects_in_live_capture) for an object detection app. To use it with your own model, you might have to adjust the geometric transformation. For more details on these transformations see [here](https://www.neuralception.com/object-detection-app/).
+See `LICENSE`.

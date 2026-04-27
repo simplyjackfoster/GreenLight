@@ -11,7 +11,7 @@
 		6301F9A826A039F90001E40E /* WebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6301F9A726A039F90001E40E /* WebView.swift */; };
 		6356002D26EBC86400A641D9 /* yolov5sTraffic.mlmodel in Sources */ = {isa = PBXBuildFile; fileRef = 6356002C26EBC86400A641D9 /* yolov5sTraffic.mlmodel */; };
 		63832B7F269A249000590A9F /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63832B7E269A249000590A9F /* SettingsView.swift */; };
-		63CB353727187C7C0076324B /* DriverAssistantTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63CB353627187C7C0076324B /* DriverAssistantTests.swift */; };
+		63CB353727187C7C0076324B /* GreenLightTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63CB353627187C7C0076324B /* GreenLightTests.swift */; };
 		63CB3CDD26E79E770015FFBD /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63CB3CDC26E79E770015FFBD /* Constants.swift */; };
 		A1B1000126046A1000000001 /* Types.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1000126046A1000000001 /* Types.swift */; };
 		A1B1000226046A1000000001 /* LightStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1000226046A1000000001 /* LightStateManager.swift */; };
@@ -42,7 +42,7 @@
 			containerPortal = FAD500931ED668B60074D713 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = FAD5009A1ED668B60074D713;
-			remoteInfo = DriverAssistant;
+			remoteInfo = GreenLight;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -51,8 +51,8 @@
 		6301F9A726A039F90001E40E /* WebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebView.swift; sourceTree = "<group>"; };
 		6356002C26EBC86400A641D9 /* yolov5sTraffic.mlmodel */ = {isa = PBXFileReference; lastKnownFileType = file.mlmodel; path = yolov5sTraffic.mlmodel; sourceTree = "<group>"; };
 		63832B7E269A249000590A9F /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		63CB353427187C7C0076324B /* DriverAssistantTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DriverAssistantTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		63CB353627187C7C0076324B /* DriverAssistantTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverAssistantTests.swift; sourceTree = "<group>"; };
+		63CB353427187C7C0076324B /* GreenLightTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GreenLightTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		63CB353627187C7C0076324B /* GreenLightTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GreenLightTests.swift; sourceTree = "<group>"; };
 		63CB3CDC26E79E770015FFBD /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		7984D3D3A63BDFC4A07FEF8F /* SampleCode.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = SampleCode.xcconfig; path = Configuration/SampleCode.xcconfig; sourceTree = "<group>"; };
 		A1A1000126046A1000000001 /* Types.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Types.swift; sourceTree = "<group>"; };
@@ -71,7 +71,7 @@
 		A1A1000E26046A1000000001 /* yolo26nTraffic.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper.mlpackage; path = yolo26nTraffic.mlpackage; sourceTree = "<group>"; };
 		A1A1000F26046A1000000001 /* yolo11nTraffic.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper.mlpackage; path = yolo11nTraffic.mlpackage; sourceTree = "<group>"; };
 		FAB417F52099308400494E9C /* ViewControllerDetection.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ViewControllerDetection.swift; sourceTree = "<group>"; };
-		FAD5009B1ED668B60074D713 /* DriverAssistant.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DriverAssistant.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FAD5009B1ED668B60074D713 /* GreenLight.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GreenLight.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FAD5009E1ED668B60074D713 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		FAD500A01ED668B60074D713 /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
 		FAD500A31ED668B60074D713 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
@@ -129,15 +129,15 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
-		63CB353527187C7C0076324B /* DriverAssistantTests */ = {
+		63CB353527187C7C0076324B /* GreenLightTests */ = {
 			isa = PBXGroup;
 			children = (
-				63CB353627187C7C0076324B /* DriverAssistantTests.swift */,
+				63CB353627187C7C0076324B /* GreenLightTests.swift */,
 				A1A1000A26046A1000000001 /* LightStateManagerTests.swift */,
 				A1A1000B26046A1000000001 /* GeometryFilterTests.swift */,
 				A1A1000C26046A1000000001 /* ColorHeuristicTests.swift */,
 			);
-			path = DriverAssistantTests;
+			path = GreenLightTests;
 			sourceTree = "<group>";
 		};
 		A1C1000126046A1000000001 /* Detection */ = {
@@ -194,8 +194,8 @@
 		FAD500921ED668B60074D713 = {
 			isa = PBXGroup;
 			children = (
-				FAD5009D1ED668B60074D713 /* DriverAssistant */,
-				63CB353527187C7C0076324B /* DriverAssistantTests */,
+				FAD5009D1ED668B60074D713 /* GreenLight */,
+				63CB353527187C7C0076324B /* GreenLightTests */,
 				FAD5009C1ED668B60074D713 /* Products */,
 				FA86553BE8674B6BE41BAA64 /* Configuration */,
 			);
@@ -204,13 +204,13 @@
 		FAD5009C1ED668B60074D713 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				FAD5009B1ED668B60074D713 /* DriverAssistant.app */,
-				63CB353427187C7C0076324B /* DriverAssistantTests.xctest */,
+				FAD5009B1ED668B60074D713 /* GreenLight.app */,
+				63CB353427187C7C0076324B /* GreenLightTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		FAD5009D1ED668B60074D713 /* DriverAssistant */ = {
+		FAD5009D1ED668B60074D713 /* GreenLight */ = {
 			isa = PBXGroup;
 			children = (
 				A1C1000426046A1000000001 /* App */,
@@ -228,15 +228,15 @@
 				FAD500A71ED668B60074D713 /* LaunchScreen.storyboard */,
 				FAD500AA1ED668B60074D713 /* Info.plist */,
 			);
-			path = DriverAssistant;
+			path = GreenLight;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		63CB353327187C7C0076324B /* DriverAssistantTests */ = {
+		63CB353327187C7C0076324B /* GreenLightTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 63CB353A27187C7C0076324B /* Build configuration list for PBXNativeTarget "DriverAssistantTests" */;
+			buildConfigurationList = 63CB353A27187C7C0076324B /* Build configuration list for PBXNativeTarget "GreenLightTests" */;
 			buildPhases = (
 				63CB353027187C7C0076324B /* Sources */,
 				63CB353127187C7C0076324B /* Frameworks */,
@@ -247,14 +247,14 @@
 			dependencies = (
 				63CB353927187C7C0076324B /* PBXTargetDependency */,
 			);
-			name = DriverAssistantTests;
-			productName = DriverAssistantTests;
-			productReference = 63CB353427187C7C0076324B /* DriverAssistantTests.xctest */;
+			name = GreenLightTests;
+			productName = GreenLightTests;
+			productReference = 63CB353427187C7C0076324B /* GreenLightTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		FAD5009A1ED668B60074D713 /* DriverAssistant */ = {
+		FAD5009A1ED668B60074D713 /* GreenLight */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = FAD500AD1ED668B60074D713 /* Build configuration list for PBXNativeTarget "DriverAssistant" */;
+			buildConfigurationList = FAD500AD1ED668B60074D713 /* Build configuration list for PBXNativeTarget "GreenLight" */;
 			buildPhases = (
 				FAD500971ED668B60074D713 /* Sources */,
 				FAD500981ED668B60074D713 /* Frameworks */,
@@ -264,9 +264,9 @@
 			);
 			dependencies = (
 			);
-			name = DriverAssistant;
+			name = GreenLight;
 			productName = "VisionCamObjectRecognition-Swift";
-			productReference = FAD5009B1ED668B60074D713 /* DriverAssistant.app */;
+			productReference = FAD5009B1ED668B60074D713 /* GreenLight.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -293,7 +293,7 @@
 					};
 				};
 			};
-			buildConfigurationList = FAD500961ED668B60074D713 /* Build configuration list for PBXProject "DriverAssistant" */;
+			buildConfigurationList = FAD500961ED668B60074D713 /* Build configuration list for PBXProject "GreenLight" */;
 			compatibilityVersion = "Xcode 8.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -306,8 +306,8 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				FAD5009A1ED668B60074D713 /* DriverAssistant */,
-				63CB353327187C7C0076324B /* DriverAssistantTests */,
+				FAD5009A1ED668B60074D713 /* GreenLight */,
+				63CB353327187C7C0076324B /* GreenLightTests */,
 			);
 		};
 /* End PBXProject section */
@@ -342,7 +342,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1B1000C26046A1000000001 /* ColorHeuristicTests.swift in Sources */,
-				63CB353727187C7C0076324B /* DriverAssistantTests.swift in Sources */,
+				63CB353727187C7C0076324B /* GreenLightTests.swift in Sources */,
 				A1B1000A26046A1000000001 /* LightStateManagerTests.swift in Sources */,
 				A1B1000B26046A1000000001 /* GeometryFilterTests.swift in Sources */,
 			);
@@ -376,7 +376,7 @@
 /* Begin PBXTargetDependency section */
 		63CB353927187C7C0076324B /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = FAD5009A1ED668B60074D713 /* DriverAssistant */;
+			target = FAD5009A1ED668B60074D713 /* GreenLight */;
 			targetProxy = 63CB353827187C7C0076324B /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -425,7 +425,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DriverAssistant.app/DriverAssistant";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GreenLight.app/GreenLight";
 			};
 			name = Debug;
 		};
@@ -452,7 +452,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DriverAssistant.app/DriverAssistant";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GreenLight.app/GreenLight";
 			};
 			name = Release;
 		};
@@ -586,7 +586,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = JJU38BPJ9P;
-				INFOPLIST_FILE = "$(SRCROOT)/DriverAssistant/Info.plist";
+				INFOPLIST_FILE = "$(SRCROOT)/GreenLight/Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 14.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -608,7 +608,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = JJU38BPJ9P;
-				INFOPLIST_FILE = "$(SRCROOT)/DriverAssistant/Info.plist";
+				INFOPLIST_FILE = "$(SRCROOT)/GreenLight/Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 14.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -625,7 +625,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		63CB353A27187C7C0076324B /* Build configuration list for PBXNativeTarget "DriverAssistantTests" */ = {
+		63CB353A27187C7C0076324B /* Build configuration list for PBXNativeTarget "GreenLightTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				63CB353B27187C7C0076324B /* Debug */,
@@ -634,7 +634,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		FAD500961ED668B60074D713 /* Build configuration list for PBXProject "DriverAssistant" */ = {
+		FAD500961ED668B60074D713 /* Build configuration list for PBXProject "GreenLight" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				FAD500AB1ED668B60074D713 /* Debug */,
@@ -643,7 +643,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		FAD500AD1ED668B60074D713 /* Build configuration list for PBXNativeTarget "DriverAssistant" */ = {
+		FAD500AD1ED668B60074D713 /* Build configuration list for PBXNativeTarget "GreenLight" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				FAD500AE1ED668B60074D713 /* Debug */,

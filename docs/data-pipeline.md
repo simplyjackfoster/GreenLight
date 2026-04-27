@@ -23,7 +23,7 @@ This creates a local virtual environment at `.venv-dataset/` and installs the re
 - Merged datasets: `export/datasets/merged/`
 - Training checkpoints: `export/models/checkpoints/`
 - CoreML exports: `export/models/coreml/`
-- App runtime models: `DriverAssistant/Models/`
+- App runtime models: `GreenLight/Models/`
 
 ## 1) Run compile checks + smoke pipeline
 
@@ -92,9 +92,9 @@ make install-coreml MODEL_PATH=export/models/coreml/yolov8nTraffic.mlpackage MOD
 
 Then in Xcode:
 
-1. Open `DriverAssistant.xcodeproj`
+1. Open `GreenLight.xcodeproj`
 2. Confirm model is part of app target and in Copy Bundle Resources
 3. If model filename changed, update lookup in:
-   - `DriverAssistant/ViewControllers/ViewControllerDetection.swift`
+   - `GreenLight/ViewControllers/ViewControllerDetection.swift`
 
 Current lookup expects `yolov5sTraffic.mlmodelc`.

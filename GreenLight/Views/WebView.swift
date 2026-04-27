@@ -1,8 +1,8 @@
 //
 //  WebView.swift
-//  DriverAssistant
+//  GreenLight
 //
-//  Created by David Kirchhoff on 2021-07-15.
+
 //
 
 

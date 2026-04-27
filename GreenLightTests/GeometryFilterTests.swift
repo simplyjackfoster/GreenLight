@@ -1,5 +1,5 @@
 import XCTest
-@testable import DriverAssistant
+@testable import GreenLight
 
 final class GeometryFilterTests: XCTestCase {
 

@@ -1,7 +1,7 @@
 # Integration Spec: iOS + CarPlay Traffic-Light Green Chime
 
 ## 1) `.mlpackage` Integration into Xcode
-- Place exported classifier package in app repo, e.g. `DriverAssistant/Models/traffic_light_state_classifier.mlpackage`.
+- Place exported classifier package in app repo, e.g. `GreenLight/Models/traffic_light_state_classifier.mlpackage`.
 - Add to Xcode target and verify it is copied in build phases.
 - Keep YOLO detector and classifier versioned together:
   - Detector: `yolov8n_coco_trafficlight`
@@ -43,7 +43,7 @@
   - `AdaptiveStateManager`
 - Keep all tunables centralized in a `struct Tuning`.
 - Keep state transitions explicit with `enum` and pure functions where possible.
-- Add unit tests in `DriverAssistantTests` for transition and cooldown edge cases.
+- Add unit tests in `GreenLightTests` for transition and cooldown edge cases.
 
 ## 5) CarPlay Integration
 - Scene setup:

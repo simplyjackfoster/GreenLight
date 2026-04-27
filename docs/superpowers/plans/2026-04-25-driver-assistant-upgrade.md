@@ -1,8 +1,8 @@
-# Driver Assistant Production Upgrade — Plan A (Detection + Chime)
+# GreenLight Production Upgrade — Plan A (Detection + Chime)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
-**Goal:** Transform the Driver Assistant demo into a production-quality iOS app with a red→green traffic light chime that fires only when stationary, with confidence-gating, geometry heuristics, and a 20-second cooldown.
+**Goal:** Transform the GreenLight demo into a production-quality iOS app with a red→green traffic light chime that fires only when stationary, with confidence-gating, geometry heuristics, and a 20-second cooldown.
 
 **Architecture:** UIKit camera pipeline (AVFoundation + Vision + Core ML) feeds into a `@MainActor DetectionState` ObservableObject. A `LightStateManager` state machine tracks red→green transitions. A `ColorHeuristic` classifies traffic light color from bounding box crops (supporting both the existing custom model labels and the future YOLOv8n COCO labels). A `ChimeController` plays a short sound via `AVAudioPlayer`. A new SwiftUI `HUDView` consumes `DetectionState` reactively.
 
@@ -15,53 +15,53 @@
 ## File Map
 
 **New files:**
-- `DriverAssistant/Detection/Types.swift` — shared enums: `DetectedLightColor`, `LightState`, `ConfidenceSensitivity`
-- `DriverAssistant/Detection/LightStateManager.swift` — state machine: idle → red → green → cooldown
-- `DriverAssistant/Detection/GeometryFilter.swift` — bounding box position/size validation
-- `DriverAssistant/Detection/ColorHeuristic.swift` — HSV classification of traffic light state from a pixel buffer crop
-- `DriverAssistant/State/DetectionState.swift` — `@MainActor ObservableObject` shared across all UI
-- `DriverAssistant/Audio/ChimeController.swift` — `AVAudioPlayer` wrapper with mute support
-- `DriverAssistant/Views/HUDView.swift` — new SwiftUI HUD (replaces DisplayView + NavigationView)
-- `DriverAssistant/App/SceneDelegate.swift` — UIWindowScene lifecycle (needed for CarPlay later)
-- `DriverAssistantTests/LightStateManagerTests.swift`
-- `DriverAssistantTests/GeometryFilterTests.swift`
-- `DriverAssistantTests/ColorHeuristicTests.swift`
+- `GreenLight/Detection/Types.swift` — shared enums: `DetectedLightColor`, `LightState`, `ConfidenceSensitivity`
+- `GreenLight/Detection/LightStateManager.swift` — state machine: idle → red → green → cooldown
+- `GreenLight/Detection/GeometryFilter.swift` — bounding box position/size validation
+- `GreenLight/Detection/ColorHeuristic.swift` — HSV classification of traffic light state from a pixel buffer crop
+- `GreenLight/State/DetectionState.swift` — `@MainActor ObservableObject` shared across all UI
+- `GreenLight/Audio/ChimeController.swift` — `AVAudioPlayer` wrapper with mute support
+- `GreenLight/Views/HUDView.swift` — new SwiftUI HUD (replaces DisplayView + NavigationView)
+- `GreenLight/App/SceneDelegate.swift` — UIWindowScene lifecycle (needed for CarPlay later)
+- `GreenLightTests/LightStateManagerTests.swift`
+- `GreenLightTests/GeometryFilterTests.swift`
+- `GreenLightTests/ColorHeuristicTests.swift`
 
 **Modified files:**
-- `DriverAssistant/AppDelegate.swift` — remove `@UIApplicationMain`, add scene delegate support
-- `DriverAssistant/Info.plist` — fix `armv7` → `arm64`, add `UIApplicationSceneManifest`, `UIBackgroundModes: audio`
-- `DriverAssistant/Configuration/SampleCode.xcconfig` — replace Apple sample-code hack with real config
-- `DriverAssistant/ViewControllers/ViewController.swift` — session preset, frame rate cap, error handling
-- `DriverAssistant/ViewControllers/ViewControllerDetection.swift` — wire `DetectionState`, `LightStateManager`, `ColorHeuristic`, `GeometryFilter`
-- `DriverAssistant/ViewControllers/LocationViewController.swift` — remove, fold into `DetectionState`
-- `DriverAssistant/Views/SettingsView.swift` — add chime toggle, sensitivity picker
-- `DriverAssistant/Models/Constants.swift` — extend with detection + chime constants
+- `GreenLight/AppDelegate.swift` — remove `@UIApplicationMain`, add scene delegate support
+- `GreenLight/Info.plist` — fix `armv7` → `arm64`, add `UIApplicationSceneManifest`, `UIBackgroundModes: audio`
+- `GreenLight/Configuration/SampleCode.xcconfig` — replace Apple sample-code hack with real config
+- `GreenLight/ViewControllers/ViewController.swift` — session preset, frame rate cap, error handling
+- `GreenLight/ViewControllers/ViewControllerDetection.swift` — wire `DetectionState`, `LightStateManager`, `ColorHeuristic`, `GeometryFilter`
+- `GreenLight/ViewControllers/LocationViewController.swift` — remove, fold into `DetectionState`
+- `GreenLight/Views/SettingsView.swift` — add chime toggle, sensitivity picker
+- `GreenLight/Models/Constants.swift` — extend with detection + chime constants
 
 **Deleted files:**
-- `DriverAssistant/Views/TestView.swift` — dead code referencing nonexistent class
-- `DriverAssistant/Views/DisplayView.swift` — replaced by HUDView
-- `DriverAssistant/Views/NavigationView.swift` — replaced by HUDView
+- `GreenLight/Views/TestView.swift` — dead code referencing nonexistent class
+- `GreenLight/Views/DisplayView.swift` — replaced by HUDView
+- `GreenLight/Views/NavigationView.swift` — replaced by HUDView
 
-> **Note:** Every new `.swift` file must be added to the `DriverAssistant` target in Xcode (drag into the project navigator and check the target box). New test files go in `DriverAssistantTests`.
+> **Note:** Every new `.swift` file must be added to the `GreenLight` target in Xcode (drag into the project navigator and check the target box). New test files go in `GreenLightTests`.
 
 ---
 
 ## Task 1: Delete dead code and fix critical configuration
 
 **Files:**
-- Delete: `DriverAssistant/Views/TestView.swift`
-- Modify: `DriverAssistant/Info.plist`
-- Modify: `DriverAssistant/Configuration/SampleCode.xcconfig`
+- Delete: `GreenLight/Views/TestView.swift`
+- Modify: `GreenLight/Info.plist`
+- Modify: `GreenLight/Configuration/SampleCode.xcconfig`
 
 - [x] **Step 1: Delete TestView.swift**
 
-Delete the file `DriverAssistant/Views/TestView.swift`. It references `VisionObjectRecognitionViewController` which does not exist and will cause a compile error if included.
+Delete the file `GreenLight/Views/TestView.swift`. It references `VisionObjectRecognitionViewController` which does not exist and will cause a compile error if included.
 
 Remove it from the Xcode project target (select file → Delete → Move to Trash).
 
 - [x] **Step 2: Fix armv7 → arm64 in Info.plist**
 
-In `DriverAssistant/Info.plist`, find:
+In `GreenLight/Info.plist`, find:
 ```xml
 <key>UIRequiredDeviceCapabilities</key>
 <array>
@@ -79,10 +79,10 @@ Replace with:
 
 - [x] **Step 3: Replace SampleCode.xcconfig**
 
-Replace the entire contents of `DriverAssistant/Configuration/SampleCode.xcconfig` with:
+Replace the entire contents of `GreenLight/Configuration/SampleCode.xcconfig` with:
 
 ```xcconfig
-// DriverAssistant.xcconfig
+// GreenLight.xcconfig
 // Project-level build settings.
 
 PRODUCT_BUNDLE_IDENTIFIER = com.$(DEVELOPMENT_TEAM).driverassistant
@@ -102,13 +102,13 @@ git commit -m "chore: delete dead TestView, fix armv7→arm64, replace sample xc
 ## Task 2: Define shared types
 
 **Files:**
-- Create: `DriverAssistant/Detection/Types.swift`
+- Create: `GreenLight/Detection/Types.swift`
 
 These enums are the vocabulary used by every other component. Define them once here.
 
 - [x] **Step 1: Create the file**
 
-Create `DriverAssistant/Detection/Types.swift` and add it to the `DriverAssistant` Xcode target:
+Create `GreenLight/Detection/Types.swift` and add it to the `GreenLight` Xcode target:
 
 ```swift
 import Foundation
@@ -140,7 +140,7 @@ enum ConfidenceSensitivity: String, CaseIterable, Identifiable {
 - [x] **Step 2: Commit**
 
 ```bash
-git add DriverAssistant/Detection/Types.swift
+git add GreenLight/Detection/Types.swift
 git commit -m "feat: add shared detection types (DetectedLightColor, ConfidenceSensitivity)"
 ```
 
@@ -149,8 +149,8 @@ git commit -m "feat: add shared detection types (DetectedLightColor, ConfidenceS
 ## Task 3: LightStateManager — state machine (TDD)
 
 **Files:**
-- Create: `DriverAssistant/Detection/LightStateManager.swift`
-- Create: `DriverAssistantTests/LightStateManagerTests.swift`
+- Create: `GreenLight/Detection/LightStateManager.swift`
+- Create: `GreenLightTests/LightStateManagerTests.swift`
 
 The state machine tracks: `idle → trackingRed(n) → confirmedRed → transitioningToGreen(n) → cooldown → idle`.
 It returns `true` exactly once per red→green transition that passes all gates.
@@ -159,11 +159,11 @@ The `update` function takes an injectable `now: Date` parameter so tests can con
 
 - [x] **Step 1: Write the failing tests**
 
-Create `DriverAssistantTests/LightStateManagerTests.swift` and add it to the `DriverAssistantTests` target:
+Create `GreenLightTests/LightStateManagerTests.swift` and add it to the `GreenLightTests` target:
 
 ```swift
 import XCTest
-@testable import DriverAssistant
+@testable import GreenLight
 
 final class LightStateManagerTests: XCTestCase {
 
@@ -285,7 +285,7 @@ In Xcode: Product → Test (⌘U). All `LightStateManagerTests` tests should fai
 
 - [x] **Step 3: Implement LightStateManager**
 
-Create `DriverAssistant/Detection/LightStateManager.swift` and add to the `DriverAssistant` target:
+Create `GreenLight/Detection/LightStateManager.swift` and add to the `GreenLight` target:
 
 ```swift
 import Foundation
@@ -404,7 +404,7 @@ final class LightStateManager {
 
 - [x] **Step 4: Add `.none` case to DetectedLightColor**
 
-Open `DriverAssistant/Detection/Types.swift` and add `.none` to `DetectedLightColor`:
+Open `GreenLight/Detection/Types.swift` and add `.none` to `DetectedLightColor`:
 
 ```swift
 enum DetectedLightColor: Equatable {
@@ -423,9 +423,9 @@ In Xcode: Product → Test (⌘U). All `LightStateManagerTests` tests should pas
 - [x] **Step 6: Commit**
 
 ```bash
-git add DriverAssistant/Detection/LightStateManager.swift \
-        DriverAssistant/Detection/Types.swift \
-        DriverAssistantTests/LightStateManagerTests.swift
+git add GreenLight/Detection/LightStateManager.swift \
+        GreenLight/Detection/Types.swift \
+        GreenLightTests/LightStateManagerTests.swift
 git commit -m "feat: add LightStateManager state machine with full test coverage"
 ```
 
@@ -434,8 +434,8 @@ git commit -m "feat: add LightStateManager state machine with full test coverage
 ## Task 4: GeometryFilter — bounding box position validation (TDD)
 
 **Files:**
-- Create: `DriverAssistant/Detection/GeometryFilter.swift`
-- Create: `DriverAssistantTests/GeometryFilterTests.swift`
+- Create: `GreenLight/Detection/GeometryFilter.swift`
+- Create: `GreenLightTests/GeometryFilterTests.swift`
 
 Filters out traffic light detections that are too small, too low in the frame, or too far to the side to plausibly be the light this driver needs to respond to.
 
@@ -443,11 +443,11 @@ Vision coordinate system: origin at **bottom-left**, y increases **upward**. So 
 
 - [x] **Step 1: Write the failing tests**
 
-Create `DriverAssistantTests/GeometryFilterTests.swift`:
+Create `GreenLightTests/GeometryFilterTests.swift`:
 
 ```swift
 import XCTest
-@testable import DriverAssistant
+@testable import GreenLight
 
 final class GeometryFilterTests: XCTestCase {
 
@@ -511,7 +511,7 @@ Product → Test (⌘U). `GeometryFilterTests` should fail with a compile error.
 
 - [x] **Step 3: Implement GeometryFilter**
 
-Create `DriverAssistant/Detection/GeometryFilter.swift`:
+Create `GreenLight/Detection/GeometryFilter.swift`:
 
 ```swift
 import CoreGraphics
@@ -559,8 +559,8 @@ Product → Test (⌘U). All `GeometryFilterTests` should pass.
 - [x] **Step 5: Commit**
 
 ```bash
-git add DriverAssistant/Detection/GeometryFilter.swift \
-        DriverAssistantTests/GeometryFilterTests.swift
+git add GreenLight/Detection/GeometryFilter.swift \
+        GreenLightTests/GeometryFilterTests.swift
 git commit -m "feat: add GeometryFilter with position/size validation and tests"
 ```
 
@@ -569,8 +569,8 @@ git commit -m "feat: add GeometryFilter with position/size validation and tests"
 ## Task 5: ColorHeuristic — HSV traffic light classification (TDD)
 
 **Files:**
-- Create: `DriverAssistant/Detection/ColorHeuristic.swift`
-- Create: `DriverAssistantTests/ColorHeuristicTests.swift`
+- Create: `GreenLight/Detection/ColorHeuristic.swift`
+- Create: `GreenLightTests/ColorHeuristicTests.swift`
 
 The HSV classification is pure and fully testable. The pixel buffer sampling is a separate, non-testable concern (Apple SDK + device hardware). Test only the pure HSV logic.
 
@@ -581,11 +581,11 @@ HSV ranges (H in degrees 0–360):
 
 - [x] **Step 1: Write the failing tests**
 
-Create `DriverAssistantTests/ColorHeuristicTests.swift`:
+Create `GreenLightTests/ColorHeuristicTests.swift`:
 
 ```swift
 import XCTest
-@testable import DriverAssistant
+@testable import GreenLight
 
 final class ColorHeuristicTests: XCTestCase {
 
@@ -670,7 +670,7 @@ Product → Test (⌘U). `ColorHeuristicTests` should fail with a compile error.
 
 - [x] **Step 3: Implement ColorHeuristic**
 
-Create `DriverAssistant/Detection/ColorHeuristic.swift`:
+Create `GreenLight/Detection/ColorHeuristic.swift`:
 
 ```swift
 import Foundation
@@ -811,8 +811,8 @@ Product → Test (⌘U). All `ColorHeuristicTests` should pass.
 - [x] **Step 5: Commit**
 
 ```bash
-git add DriverAssistant/Detection/ColorHeuristic.swift \
-        DriverAssistantTests/ColorHeuristicTests.swift
+git add GreenLight/Detection/ColorHeuristic.swift \
+        GreenLightTests/ColorHeuristicTests.swift
 git commit -m "feat: add ColorHeuristic HSV classifier with full test coverage"
 ```
 
@@ -821,13 +821,13 @@ git commit -m "feat: add ColorHeuristic HSV classifier with full test coverage"
 ## Task 6: DetectionState — shared observable state
 
 **Files:**
-- Create: `DriverAssistant/State/DetectionState.swift`
+- Create: `GreenLight/State/DetectionState.swift`
 
 This is the single source of truth consumed by both the phone HUD and (in Plan B) CarPlay. It also owns the `LocationViewModel` for speed, replacing the disconnected `DisplayView` pattern.
 
 - [x] **Step 1: Create DetectionState.swift**
 
-Create `DriverAssistant/State/DetectionState.swift` and add to the `DriverAssistant` target:
+Create `GreenLight/State/DetectionState.swift` and add to the `GreenLight` target:
 
 ```swift
 import Foundation
@@ -905,7 +905,7 @@ extension DetectionState: CLLocationManagerDelegate {
 - [x] **Step 2: Commit**
 
 ```bash
-git add DriverAssistant/State/DetectionState.swift
+git add GreenLight/State/DetectionState.swift
 git commit -m "feat: add DetectionState shared observable with speed tracking"
 ```
 
@@ -914,13 +914,13 @@ git commit -m "feat: add DetectionState shared observable with speed tracking"
 ## Task 7: ChimeController
 
 **Files:**
-- Create: `DriverAssistant/Audio/ChimeController.swift`
+- Create: `GreenLight/Audio/ChimeController.swift`
 
-> **Flag for user:** You must supply a bundled sound file at `DriverAssistant/Resources/chime.aiff` (or `.caf`). Requirements: short (≤0.5s), two-tone ascending, not startling. Free sources: `freesound.org` (CC0 license). The file must be added to the Xcode target's "Copy Bundle Resources" build phase.
+> **Flag for user:** You must supply a bundled sound file at `GreenLight/Resources/chime.aiff` (or `.caf`). Requirements: short (≤0.5s), two-tone ascending, not startling. Free sources: `freesound.org` (CC0 license). The file must be added to the Xcode target's "Copy Bundle Resources" build phase.
 
 - [x] **Step 1: Create ChimeController.swift**
 
-Create `DriverAssistant/Audio/ChimeController.swift` and add to the `DriverAssistant` target:
+Create `GreenLight/Audio/ChimeController.swift` and add to the `GreenLight` target:
 
 ```swift
 import AVFoundation
@@ -956,7 +956,7 @@ final class ChimeController {
 
 - [x] **Step 2: Configure AVAudioSession in AppDelegate**
 
-Open `DriverAssistant/AppDelegate.swift`. The audio session must be configured before any sound plays. Add to `application(_:didFinishLaunchingWithOptions:)`:
+Open `GreenLight/AppDelegate.swift`. The audio session must be configured before any sound plays. Add to `application(_:didFinishLaunchingWithOptions:)`:
 
 ```swift
 import UIKit
@@ -992,8 +992,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 - [x] **Step 3: Commit**
 
 ```bash
-git add DriverAssistant/Audio/ChimeController.swift \
-        DriverAssistant/AppDelegate.swift
+git add GreenLight/Audio/ChimeController.swift \
+        GreenLight/AppDelegate.swift
 git commit -m "feat: add ChimeController and configure AVAudioSession"
 ```
 
@@ -1002,11 +1002,11 @@ git commit -m "feat: add ChimeController and configure AVAudioSession"
 ## Task 8: Camera pipeline improvements
 
 **Files:**
-- Modify: `DriverAssistant/ViewControllers/ViewController.swift`
+- Modify: `GreenLight/ViewControllers/ViewController.swift`
 
 - [x] **Step 1: Replace ViewController.swift**
 
-Replace the entire contents of `DriverAssistant/ViewControllers/ViewController.swift`:
+Replace the entire contents of `GreenLight/ViewControllers/ViewController.swift`:
 
 ```swift
 import UIKit
@@ -1145,7 +1145,7 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
         DispatchQueue.main.async {
             let alert = UIAlertController(
                 title: "Camera Unavailable",
-                message: "Driver Assistant requires camera access. Please enable it in Settings.",
+                message: "GreenLight requires camera access. Please enable it in Settings.",
                 preferredStyle: .alert
             )
             alert.addAction(UIAlertAction(title: "Open Settings", style: .default) { _ in
@@ -1163,7 +1163,7 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
 - [x] **Step 2: Commit**
 
 ```bash
-git add DriverAssistant/ViewControllers/ViewController.swift
+git add GreenLight/ViewControllers/ViewController.swift
 git commit -m "feat: improve camera pipeline — 720p preset, 15fps cap, error handling"
 ```
 
@@ -1172,13 +1172,13 @@ git commit -m "feat: improve camera pipeline — 720p preset, 15fps cap, error h
 ## Task 9: Refactor ViewControllerDetection
 
 **Files:**
-- Modify: `DriverAssistant/ViewControllers/ViewControllerDetection.swift`
+- Modify: `GreenLight/ViewControllers/ViewControllerDetection.swift`
 
 This is where all the new components connect. The old indicator UIImageViews are removed in favor of `DetectionState`. The state machine runs per-frame.
 
 - [x] **Step 1: Replace ViewControllerDetection.swift**
 
-Replace the entire contents of `DriverAssistant/ViewControllers/ViewControllerDetection.swift`:
+Replace the entire contents of `GreenLight/ViewControllers/ViewControllerDetection.swift`:
 
 ```swift
 import UIKit
@@ -1383,7 +1383,7 @@ class ViewControllerDetection: ViewController {
 - [x] **Step 2: Commit**
 
 ```bash
-git add DriverAssistant/ViewControllers/ViewControllerDetection.swift
+git add GreenLight/ViewControllers/ViewControllerDetection.swift
 git commit -m "feat: refactor ViewControllerDetection to use DetectionState, LightStateManager, ColorHeuristic"
 ```
 
@@ -1392,15 +1392,15 @@ git commit -m "feat: refactor ViewControllerDetection to use DetectionState, Lig
 ## Task 10: SceneDelegate + AppDelegate lifecycle
 
 **Files:**
-- Create: `DriverAssistant/App/SceneDelegate.swift`
-- Modify: `DriverAssistant/AppDelegate.swift`
-- Modify: `DriverAssistant/Info.plist`
+- Create: `GreenLight/App/SceneDelegate.swift`
+- Modify: `GreenLight/AppDelegate.swift`
+- Modify: `GreenLight/Info.plist`
 
 Migrating to scene-based lifecycle is required before Plan B (CarPlay). CarPlay needs a second `UIScene` (`CPTemplateApplicationScene`).
 
 - [x] **Step 1: Create SceneDelegate.swift**
 
-Create `DriverAssistant/App/SceneDelegate.swift` and add to the `DriverAssistant` target:
+Create `GreenLight/App/SceneDelegate.swift` and add to the `GreenLight` target:
 
 ```swift
 import UIKit
@@ -1429,7 +1429,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
 - [x] **Step 2: Update AppDelegate.swift**
 
-Replace `DriverAssistant/AppDelegate.swift`:
+Replace `GreenLight/AppDelegate.swift`:
 
 ```swift
 import UIKit
@@ -1473,7 +1473,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
 - [x] **Step 3: Add UIApplicationSceneManifest to Info.plist**
 
-In `DriverAssistant/Info.plist`, add these keys (before the closing `</dict>`):
+In `GreenLight/Info.plist`, add these keys (before the closing `</dict>`):
 
 ```xml
 <key>UIApplicationSceneManifest</key>
@@ -1508,9 +1508,9 @@ Product → Build (⌘B). The app should compile cleanly. Run on device to verif
 - [x] **Step 5: Commit**
 
 ```bash
-git add DriverAssistant/App/SceneDelegate.swift \
-        DriverAssistant/AppDelegate.swift \
-        DriverAssistant/Info.plist
+git add GreenLight/App/SceneDelegate.swift \
+        GreenLight/AppDelegate.swift \
+        GreenLight/Info.plist
 git commit -m "feat: migrate to scene-based lifecycle, add background audio mode"
 ```
 
@@ -1519,15 +1519,15 @@ git commit -m "feat: migrate to scene-based lifecycle, add background audio mode
 ## Task 11: New HUDView
 
 **Files:**
-- Create: `DriverAssistant/Views/HUDView.swift`
-- Delete: `DriverAssistant/Views/DisplayView.swift`
-- Delete: `DriverAssistant/Views/NavigationView.swift`
+- Create: `GreenLight/Views/HUDView.swift`
+- Delete: `GreenLight/Views/DisplayView.swift`
+- Delete: `GreenLight/Views/NavigationView.swift`
 
 `HUDView` replaces both `DisplayView` (speed) and `NavigationView` (tap-to-show settings). It observes `DetectionState.shared` so all properties are reactive.
 
 - [x] **Step 1: Create HUDView.swift**
 
-Create `DriverAssistant/Views/HUDView.swift` and add to the `DriverAssistant` target:
+Create `GreenLight/Views/HUDView.swift` and add to the `GreenLight` target:
 
 ```swift
 import SwiftUI
@@ -1587,14 +1587,14 @@ struct HUDView: View {
 
 - [x] **Step 2: Delete DisplayView.swift and NavigationView.swift**
 
-Delete `DriverAssistant/Views/DisplayView.swift` and `DriverAssistant/Views/NavigationView.swift` from the Xcode project (select → Delete → Move to Trash).
+Delete `GreenLight/Views/DisplayView.swift` and `GreenLight/Views/NavigationView.swift` from the Xcode project (select → Delete → Move to Trash).
 
 Fix any storyboard or code references that pointed to these views (the storyboard's root VC is `ViewControllerDetection`, which now embeds `HUDView` directly — no storyboard references to the deleted files needed).
 
 - [x] **Step 3: Commit**
 
 ```bash
-git add DriverAssistant/Views/HUDView.swift
+git add GreenLight/Views/HUDView.swift
 git commit -m "feat: add HUDView replacing DisplayView+NavigationView, reactive via DetectionState"
 ```
 
@@ -1603,13 +1603,13 @@ git commit -m "feat: add HUDView replacing DisplayView+NavigationView, reactive 
 ## Task 12: Update SettingsView
 
 **Files:**
-- Modify: `DriverAssistant/Views/SettingsView.swift`
+- Modify: `GreenLight/Views/SettingsView.swift`
 
 Add a chime section with enable toggle and sensitivity picker. Wire to `DetectionState.shared`.
 
 - [x] **Step 1: Replace SettingsView.swift**
 
-Replace the entire contents of `DriverAssistant/Views/SettingsView.swift`:
+Replace the entire contents of `GreenLight/Views/SettingsView.swift`:
 
 ```swift
 import SwiftUI
@@ -1673,7 +1673,7 @@ struct SettingsView: View {
 - [x] **Step 2: Commit**
 
 ```bash
-git add DriverAssistant/Views/SettingsView.swift
+git add GreenLight/Views/SettingsView.swift
 git commit -m "feat: update SettingsView with chime toggle and sensitivity picker"
 ```
 
@@ -1703,9 +1703,9 @@ Expected output: `yolo26n.mlpackage` folder.
 
 - [x] **Step 3: Add model to Xcode project**
 
-Drag `yolo26n.mlpackage` into `DriverAssistant/Models/` in Xcode. When prompted:
+Drag `yolo26n.mlpackage` into `GreenLight/Models/` in Xcode. When prompted:
 - ✅ Copy items if needed
-- ✅ Add to target: DriverAssistant
+- ✅ Add to target: GreenLight
 
 - [x] **Step 4: Update model filename in ViewControllerDetection**
 
@@ -1730,7 +1730,7 @@ Build and run. Open Console.app and filter for `[ViewControllerDetection]` — c
 - [x] **Step 6: Commit (after model is added)**
 
 ```bash
-git add DriverAssistant/Models/yolo26nTraffic.mlpackage
+git add GreenLight/Models/yolo26nTraffic.mlpackage
 git commit -m "feat: add YOLO26n CoreML model for on-device inference"
 ```
 
@@ -1739,13 +1739,13 @@ git commit -m "feat: add YOLO26n CoreML model for on-device inference"
 ## Task 14: PrivacyInfo.xcprivacy (App Store requirement)
 
 **Files:**
-- Create: `DriverAssistant/PrivacyInfo.xcprivacy`
+- Create: `GreenLight/PrivacyInfo.xcprivacy`
 
 Required for App Store submission since Spring 2024. Declares which privacy-sensitive APIs the app accesses.
 
 - [x] **Step 1: Create PrivacyInfo.xcprivacy**
 
-Create `DriverAssistant/PrivacyInfo.xcprivacy` and add to the `DriverAssistant` target (must be in "Copy Bundle Resources" build phase):
+Create `GreenLight/PrivacyInfo.xcprivacy` and add to the `GreenLight` target (must be in "Copy Bundle Resources" build phase):
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -1779,7 +1779,7 @@ Create `DriverAssistant/PrivacyInfo.xcprivacy` and add to the `DriverAssistant` 
 - [x] **Step 2: Commit**
 
 ```bash
-git add DriverAssistant/PrivacyInfo.xcprivacy
+git add GreenLight/PrivacyInfo.xcprivacy
 git commit -m "chore: add PrivacyInfo.xcprivacy for App Store submission"
 ```
 

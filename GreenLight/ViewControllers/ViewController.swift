@@ -145,7 +145,7 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
         DispatchQueue.main.async {
             let alert = UIAlertController(
                 title: "Camera Unavailable",
-                message: "Driver Assistant requires camera access. Please enable it in Settings.",
+                message: "GreenLight requires camera access. Please enable it in Settings.",
                 preferredStyle: .alert
             )
             alert.addAction(UIAlertAction(title: "Open Settings", style: .default) { _ in
