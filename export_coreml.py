@@ -98,6 +98,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--description", default="Traffic light state classifier: red/green/yellow/off")
 
     parser.add_argument("--device", choices=["auto", "cpu", "mps", "cuda"], default="auto")
+    parser.add_argument(
+        "--skip-normalization-check",
+        action="store_true",
+        help="Skip multiarray vs image-mode normalization divergence check",
+    )
     parser.add_argument("--no-progress", action="store_true")
     parser.add_argument("--verbose", action="store_true")
     return parser.parse_args()
@@ -343,6 +348,62 @@ def validate_parity(
     )
 
 
+def check_normalization_divergence(
+    traced_model: Any,
+    primary_model: Any,
+    dataset: Any,
+    class_labels: list[str],
+    image_size: int,
+    input_type: str,
+    max_samples: int = 50,
+    divergence_threshold: float = 0.01,
+    seed: int = DEFAULT_SEED,
+) -> float:
+    """Compare top-1 confidence between multiarray and image-mode Core ML paths."""
+    if input_type not in {"multiarray", "image"}:
+        return 0.0
+
+    other_input_type = "image" if input_type == "multiarray" else "multiarray"
+    secondary_model = convert_to_coreml(traced_model, other_input_type, image_size, class_labels)
+
+    rng = np.random.default_rng(seed)
+    indices = np.arange(len(dataset))
+    rng.shuffle(indices)
+    picked = indices[: min(max_samples, len(indices))]
+
+    divergences: list[float] = []
+    for idx in picked:
+        path, _ = dataset.samples[int(idx)]
+        try:
+            primary_input = preprocess_for_coreml(path, image_size, input_type)
+            secondary_input = preprocess_for_coreml(path, image_size, other_input_type)
+            primary_pred = primary_model.predict({"input": primary_input})
+            secondary_pred = secondary_model.predict({"input": secondary_input})
+            primary_probs = extract_prob_dict(primary_pred, class_labels)
+            secondary_probs = extract_prob_dict(secondary_pred, class_labels)
+        except Exception:
+            continue
+
+        top1_primary = max(primary_probs.values()) if primary_probs else 0.0
+        top1_secondary = max(secondary_probs.values()) if secondary_probs else 0.0
+        divergences.append(abs(top1_primary - top1_secondary))
+
+    if not divergences:
+        logger.warning("Normalization divergence check: no samples compared")
+        return 0.0
+
+    mean_div = float(np.mean(divergences))
+    if mean_div > divergence_threshold:
+        logger.warning(
+            "Normalization divergence %.4f exceeds threshold %.4f; image-mode normalization may differ",
+            mean_div,
+            divergence_threshold,
+        )
+    else:
+        logger.warning("Normalization divergence %.4f within threshold %.4f", mean_div, divergence_threshold)
+    return mean_div
+
+
 def file_size_mb(path: Path) -> float:
     if path.is_file():
         size = path.stat().st_size
@@ -418,6 +479,18 @@ def main() -> None:
         raise SystemExit(
             f"Core ML parity check failed: top1_match_rate={summary.top1_match_rate:.4f} < 0.95"
         )
+
+    if not args.skip_normalization_check:
+        mean_divergence = check_normalization_divergence(
+            traced_model=traced,
+            primary_model=mlmodel,
+            dataset=val_dataset,
+            class_labels=class_labels,
+            image_size=args.image_size,
+            input_type=args.input_type,
+            seed=args.seed,
+        )
+        logger.warning("Mean normalization divergence (multiarray vs image-mode): %.4f", mean_divergence)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     output_path = args.output_dir / f"{args.output_name}.mlpackage"

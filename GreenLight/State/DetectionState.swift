@@ -14,7 +14,12 @@ final class DetectionState: NSObject, ObservableObject {
     @Published var speedUnit: String = "MPH"
 
     private(set) var speedMph: Double = 0.0
-    var isStationary: Bool { speedMph < Constants.Detection.stationarySpeedThresholdMPH }
+    private(set) var gpsActive: Bool = false
+
+    var speedStatus: SpeedStatus {
+        guard gpsActive else { return .unknown }
+        return speedMph < Constants.Detection.stationarySpeedThresholdMPH ? .knownStationary : .knownMoving
+    }
 
     @Published var isChimeEnabled: Bool = UserDefaults.standard.bool(forKey: "chimeEnabled") {
         didSet { UserDefaults.standard.set(isChimeEnabled, forKey: "chimeEnabled") }
@@ -41,7 +46,6 @@ final class DetectionState: NSObject, ObservableObject {
         locationManager.startUpdatingLocation()
     }
 
-    // FIXED: expose explicit visual cue for red->green transition so users get on-screen feedback with/without audio.
     func triggerGreenTransitionCue() {
         showGreenTransitionCue = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.25) { [weak self] in
@@ -52,10 +56,11 @@ final class DetectionState: NSObject, ObservableObject {
 
 extension DetectionState: CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.last else { return }
-        let rawMetersPerSecond = max(0, location.speed)
+        guard let location = locations.last, location.speed >= 0 else { return }
+        let rawMetersPerSecond = location.speed
 
         Task { @MainActor in
+            self.gpsActive = true
             self.speedMph = rawMetersPerSecond * 2.237
             if self.useMetricUnits {
                 self.speed = rawMetersPerSecond * 3.6
@@ -63,6 +68,21 @@ extension DetectionState: CLLocationManagerDelegate {
             } else {
                 self.speed = self.speedMph
                 self.speedUnit = "MPH"
+            }
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        Task { @MainActor in
+            self.gpsActive = false
+        }
+    }
+
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
+        Task { @MainActor in
+            if status == .denied || status == .restricted {
+                self.gpsActive = false
             }
         }
     }

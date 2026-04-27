@@ -46,7 +46,6 @@ class ViewControllerDetection: ViewController {
         }
 
         do {
-            // FIXED: avoid ANE-only execution paths that reject some pooling kernels on-device.
             let configuration = MLModelConfiguration()
             configuration.computeUnits = .cpuAndGPU
             let mlModel = try MLModel(contentsOf: modelURL, configuration: configuration)
@@ -101,15 +100,13 @@ class ViewControllerDetection: ViewController {
             let box = observation.boundingBox
 
             let lightColor = resolveTrafficLightColor(label: label, box: box)
-            if lightColor != .unknown,
-               lightColor != .none,
+            if lightColor != .unknown, lightColor != .none,
                top.confidence > bestObservedConfidence {
                 bestObservedLightColor = lightColor
                 bestObservedConfidence = top.confidence
             }
 
-            if lightColor != .unknown,
-               lightColor != .none,
+            if lightColor != .unknown, lightColor != .none,
                GeometryFilter.passes(normalizedBox: box),
                top.confidence > bestFilteredConfidence {
                 bestFilteredLightColor = lightColor
@@ -126,19 +123,19 @@ class ViewControllerDetection: ViewController {
             }
         }
 
+        let speedStatus = detectionState.speedStatus
+
         let stateMachineChime = stateManager.update(
             detectedLight: bestFilteredLightColor,
-            isStationary: detectionState.isStationary
+            speedStatus: speedStatus
         )
 
-        // Keep chime reliable even when geometry-filtered frames flicker/miss intermittently.
-        let fallbackChime = fallbackState.update(
+        let fallbackChime = stateManager.isTrackingRedOrTransitioning && fallbackState.update(
             filteredLight: bestFilteredLightColor,
             observedLight: bestObservedLightColor,
-            isStationary: detectionState.isStationary
+            speedStatus: speedStatus
         )
 
-        // Show a visual cue for observed red->green transitions even when chime criteria are not met.
         if previousObservedLight == .red && bestObservedLightColor == .green {
             detectionState.triggerGreenTransitionCue()
         }
@@ -146,11 +143,21 @@ class ViewControllerDetection: ViewController {
 
         detectionState.lightColor = stateManager.displayState
 
+        let chimeFired = stateMachineChime || fallbackChime
         chimeController.isMuted = !detectionState.isChimeEnabled
-        if stateMachineChime || fallbackChime {
+        if chimeFired {
             chimeController.play()
             detectionState.triggerGreenTransitionCue()
         }
+
+        TelemetryLogger.shared.log(TelemetryEvent(
+            filteredLight: bestFilteredLightColor,
+            observedLight: bestObservedLightColor,
+            speedStatus: speedStatus,
+            stateMachineChime: stateMachineChime,
+            fallbackChime: fallbackChime,
+            displayState: stateManager.displayState
+        ))
     }
 
     private func resolveTrafficLightColor(label: String, box: CGRect) -> DetectedLightColor {
@@ -244,7 +251,6 @@ class ViewControllerDetection: ViewController {
         return layer
     }
 
-    // FIXED: treat missing key as enabled so first launch still renders detections.
     private func boolDefaultTrue(_ key: String) -> Bool {
         if UserDefaults.standard.object(forKey: key) == nil {
             return true

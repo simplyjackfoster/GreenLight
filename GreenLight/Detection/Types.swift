@@ -26,3 +26,9 @@ enum ConfidenceSensitivity: String, CaseIterable, Identifiable {
         }
     }
 }
+
+enum SpeedStatus: Equatable {
+    case knownStationary
+    case knownMoving
+    case unknown
+}
