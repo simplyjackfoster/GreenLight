@@ -172,24 +172,27 @@ def tag_records_lighting_scale(records: list[AnnotationRecord]) -> list[Annotati
         logger.warning("OpenCV unavailable; skipping lighting/scale tagging.")
         return records
 
+    # Sort by image_path so consecutive records share the same image in memory.
+    # Only one image is held at a time, preventing OOM on large datasets.
+    sorted_records = sorted(records, key=lambda r: str(r.image_path))
     tagged: list[AnnotationRecord] = []
-    image_cache: dict[Path, Any] = {}
     warned_paths: set[Path] = set()
+    current_path: Path | None = None
+    current_image: Any = None
 
-    for rec in records:
-        image = image_cache.get(rec.image_path)
-        if image is None and rec.image_path not in image_cache:
-            image = cv2.imread(str(rec.image_path), cv2.IMREAD_COLOR)
-            image_cache[rec.image_path] = image
-            if image is None and rec.image_path not in warned_paths:
-                logger.warning("Unreadable image during tagging: %s", rec.image_path)
-                warned_paths.add(rec.image_path)
+    for rec in sorted_records:
+        if rec.image_path != current_path:
+            current_path = rec.image_path
+            current_image = cv2.imread(str(current_path), cv2.IMREAD_COLOR)
+            if current_image is None and current_path not in warned_paths:
+                logger.warning("Unreadable image during tagging: %s", current_path)
+                warned_paths.add(current_path)
 
-        if image is None:
+        if current_image is None:
             tagged.append(replace(rec, lighting=None, scale=None))
             continue
 
-        lighting, scale = _compute_tags_for_bbox(image, rec.bbox_xyxy)
+        lighting, scale = _compute_tags_for_bbox(current_image, rec.bbox_xyxy)
         tagged.append(replace(rec, lighting=lighting, scale=scale))
 
     return tagged
@@ -310,18 +313,29 @@ def balance_records_by_strata(
         logger.warning("All records are untagged; skipping stratum balancing.")
         return records
 
-    rarest_count = min(len(items) for items in tagged_by_stratum.values())
-    stratum_cap = math.floor(rarest_count * balance_cap_multiplier)
-    rng = random.Random(seed)
+    # Exclude hard_negative strata from the rarest-count calculation so that
+    # sparse mined negatives don't collapse the cap for all positive strata.
+    positive_strata = {k: v for k, v in tagged_by_stratum.items() if k[2] != "hard_negative"}
+    hard_neg_strata = {k: v for k, v in tagged_by_stratum.items() if k[2] == "hard_negative"}
 
+    rng = random.Random(seed)
     balanced: list[AnnotationRecord] = []
-    for items in tagged_by_stratum.values():
-        if len(items) <= stratum_cap:
-            balanced.extend(items)
-            continue
-        if stratum_cap <= 0:
-            continue
-        balanced.extend(rng.sample(items, stratum_cap))
+
+    if positive_strata:
+        rarest_count = min(len(v) for v in positive_strata.values())
+        stratum_cap = max(1, math.floor(rarest_count * balance_cap_multiplier))
+        for items in positive_strata.values():
+            if len(items) <= stratum_cap:
+                balanced.extend(items)
+            else:
+                balanced.extend(rng.sample(items, stratum_cap))
+    else:
+        logger.warning("No tagged positive strata found; skipping positive stratum balancing.")
+
+    # Hard negatives pass through uncapped; their total is already constrained
+    # by the hard_neg_ratio cap applied during mining.
+    for items in hard_neg_strata.values():
+        balanced.extend(items)
 
     balanced.extend(untagged)
     rng.shuffle(balanced)
@@ -975,8 +989,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--crop-size must be > 0")
     if args.min_box_area < 0.0:
         raise ValueError("--min-box-area must be >= 0")
-    if args.balance_cap <= 0.0:
-        raise ValueError("--balance-cap must be > 0")
+    if args.balance_cap < 1.0:
+        raise ValueError("--balance-cap must be >= 1.0 (values below 1.0 would discard the rarest stratum)")
     if not (0.0 <= args.hard_neg_ratio <= 1.0):
         raise ValueError("--hard-neg-ratio must be between 0 and 1")
     if args.hard_neg_per_image <= 0:

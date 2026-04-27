@@ -1,157 +1,355 @@
-# Architecture: Green-Light Chime Pipeline
+# Architecture: Green-Light Chime System
 
-## System Objective
-Deliver a high-trust green-light chime with low false-positive rate in real road scenes with multiple visible signals.
+## Goal
+Build a best-in-class iPhone + CarPlay traffic-light state change detector that reliably chimes on the driver's light turning green while keeping false positives extremely low.
 
-## Pipeline Overview
-1. Stage 1 detector: frozen YOLOv8n COCO traffic-light localization.
-2. Stage 2 classifier: MobileNetV3-Small (primary) / EfficientNet-Lite0 (comparison) for `red/green/yellow/off`.
-3. Primary selection: choose the driver-relevant light among multiple candidates.
-4. Confidence fusion: combine classifier confidence + geometry + temporal prior + ambient conditions.
-5. Pre-chime validator: 6-pass burst confirmation before any chime.
-6. Adaptive state manager: transition control, lost handling, speed gate, cooldown.
-7. Evaluation + overlay: objective metrics + debuggability.
+Primary product metrics:
+- False positives per hour (key trust metric)
+- True positive rate on red->green transitions
+- Chime latency (frames/time from true transition to chime)
 
-## Design Decisions
-- Two-stage architecture kept by design for speed and modularity.
-- Detector remains frozen to reduce maintenance complexity and preserve on-device speed.
-- Classifier trained only on public datasets (LISA, S2TLD, BSTLD).
-- Label space normalized to 4 classes to simplify state logic and Swift port.
-- Reliability is not a single-model output; it is a fused confidence from multiple signals.
-- Chime is gated by both state-machine semantics and pre-chime burst validation.
+Ship gate:
+- UNSHIPPABLE if false positives per hour > 1.0
+- TARGET if false positives per hour < 0.5 and true positive rate > 92%
 
-## Components
+## Architecture Summary
+End-to-end system is split into two layers:
+- Model layer: detector + state classifier
+- Decision layer: primary selection + fusion + validation + state machine
 
-### 1) Dataset Pipeline (`dataset_pipeline.py`)
-Responsibilities:
-- Parse LISA CSV, S2TLD XML, BSTLD YAML.
-- Normalize labels to `red/green/yellow/off`.
-- Crop with 15% padding and resize to 64x64.
-- Stratified 85/15 train/val split.
-- Export class folders and sampling manifests.
+This separation is intentional:
+- Model layer improves visual recognition.
+- Decision layer protects user trust with temporal logic and safety gating.
 
-Key tunables:
-- `DEFAULT_PADDING_RATIO = 0.15`
-- `DEFAULT_SPLIT_RATIO = 0.85`
-- `DEFAULT_MIN_BOX_AREA = 16.0`
+## Runtime Pipeline (On Device)
+1. Capture frame (`AVCaptureSession`, 720p, ~30 FPS target).
+2. Run traffic-light detector to get candidate boxes.
+3. Run `PrimaryLightSelector` to choose driver-relevant signal.
+4. Crop selected box and run state classifier (`red/green/yellow/off`).
+5. Compute reliability in `ConfidenceFusionEngine`.
+6. Update `AdaptiveStateManager`.
+7. On tentative green, run `PreChimeValidator` burst.
+8. Fire chime only if all gates pass.
+9. Render optional `debug_overlay` for development diagnostics.
 
-### 2) Training (`train.py`)
-Responsibilities:
-- Train `mobilenet_v3_small` and `efficientnet_lite0`.
-- Freeze backbone for 5 epochs then unfreeze.
-- WeightedRandomSampler for class imbalance.
-- AdamW + cosine annealing + label smoothing.
-- Early stopping on validation accuracy.
+## Model Layer
 
-Key tunables:
-- `DEFAULT_LEARNING_RATE = 1e-3`
-- `DEFAULT_FREEZE_EPOCHS = 5`
-- `DEFAULT_EARLY_STOPPING_PATIENCE = 5`
-- Augment knobs (`AUG_*`) for brightness/contrast/blur/rotation/cutout
+### Detector Strategy
+Current baseline:
+- Frozen YOLOv8n COCO traffic-light localization.
 
-### 3) Core ML Export (`export_coreml.py`)
-Responsibilities:
-- Auto-select winning checkpoint.
-- Export as ML Program with float16 and `compute_units=ALL`.
-- Output `classLabel` + `classProbability`.
-- Validate parity on 20 val samples against PyTorch.
+Recommended "my own model" path:
+- Train custom detector on unified public traffic-light datasets.
+- Train high-accuracy teacher model first (YOLO26 medium tier recommended).
+- Distill or downsize to edge-efficient student for iPhone runtime.
 
-Key tunables:
-- `--input-type multiarray|image`
-- `--validation-samples`
-- parity gate threshold (current hard gate: top-1 match >= 0.95)
+YOLO family guidance (Ultralytics, April 2026):
+- Newest family: YOLO26.
+- Highest accuracy tier: `yolo26x.pt` (best offline benchmark accuracy, highest runtime cost).
+- Best edge tradeoff for this app: `yolo26s.pt` (recommended production candidate).
+- Fastest/lightest: `yolo26n.pt` (latency-first fallback).
 
-### 4) Primary Selector (`primary_light_selector.py`)
-Responsibilities:
-- Score candidates by area/center/vertical/stability/aspect ratio.
-- Maintain selection through short occlusion.
-- Prevent rapid switching via hysteresis.
+Detector model plan for this project:
+1. Train `yolo26m` as teacher (maximize recall/precision quality).
+2. Train `yolo26s` as production candidate.
+3. Optionally train `yolo26n` as low-latency fallback.
+4. Choose production model by full-system metrics:
+   - false positives per hour
+   - true positive rate
+   - end-to-end chime latency
+   (not by mAP alone).
 
-Weights (default):
-- area `0.35`
-- center proximity `0.25`
-- vertical `0.15`
-- stability `0.15`
-- aspect ratio `0.10`
+Detector training objective:
+- Maximize small-object recall with strict false-positive control.
 
-Key tunables:
-- `track_match_iou_threshold`
-- `switch_hysteresis_margin`
-- `occlusion_hold_frames`
+Detector output contract:
+- Input: full camera frame.
+- Output: list of `bbox + confidence + class` where class is either:
+  - single-class `traffic_light`, or
+  - multi-class traffic-light variants.
 
-### 5) Confidence Fusion (`confidence_fusion_engine.py`)
-Responsibilities:
-- Fuse classifier confidence, bbox size/stability, ambient score, transition prior.
-- Apply adaptive day/dusk/night threshold.
+Decision:
+- Prefer single-class detector plus dedicated state classifier for robust modularity.
 
-Transition priors:
-- red -> green: `0.90`
-- green -> green: `0.85`
-- yellow -> red: `0.80`
-- off -> off: `0.55`
+### State Classifier Strategy
+Implemented:
+- MobileNetV3-Small (primary)
+- EfficientNet-Lite0 (comparison)
 
-Adaptive thresholds:
-- day `0.82`
-- dusk `0.87`
-- night `0.91`
+Upgrade path (explicit comparison matrix):
+- Compare `MobileNetV3-Small` vs `MobileNetV3-Large` vs `EfficientNet-Lite1`.
+- Run each at `64x64` and `96x96` crop resolutions.
+- Promote classifier by trust metrics first (FP/hour, TPR, latency), accuracy second.
 
-### 6) Pre-Chime Validator (`pre_chime_validator.py`)
-Responsibilities:
-- Freeze selected bbox.
-- Run 6-pass scale burst: `0.9,0.95,1.0,1.05,1.1,1.0(+brightness)`.
-- Require `5/6` green confirmations above threshold.
-- Enforce total time budget (`150ms`).
+Training setup:
+- ImageNet pretrained initialization
+- 64x64 RGB traffic-light crops
+- Label space: `red`, `green`, `yellow`, `off`
+- Weighted sampling for class imbalance
+- Freeze backbone first epochs, then full fine-tune
 
-Key tunables:
-- `required_confirmations = 5`
-- `total_time_budget_ms = 150`
-- `brightness_delta = 0.08`
+Export:
+- Core ML `.mlpackage`
+- Float16 precision
+- `compute_units=ALL`
+- Outputs: `classLabel` + `classProbability`
 
-### 7) Adaptive State Manager (`adaptive_state_manager.py`)
-Responsibilities:
-- Manage transition graph and chime gating.
-- LOST hold for temporary occlusion.
-- Adaptive buffer by lighting condition.
-- Speed and cooldown safety gates.
+## Data Architecture
 
-Key tunables:
-- `lost_hold_frames = 45`
-- `speed_gate_mph = 2.0`
-- `cooldown_frames = 150`
-- buffer size day/dusk/night = `5/7/10`
+### Data Sources (Public Only)
+- LISA Traffic Light Dataset (CSV annotations)
+- S2TLD (XML annotations, includes `wait_on`)
+- BSTLD (YAML annotations, strong small/distant examples)
 
-### 8) Evaluation (`evaluate.py`)
-Responsibilities:
-- Compute TP/FP/FN, latency median/P95, FP/hour.
-- Breakdowns by day/night and single/multiple lights.
-- Trust verdict:
-  - `UNSHIPPABLE` if FP/hour > 1.0
-  - `TARGET` if FP/hour < 0.5 and TPR > 92%
+### Data Normalization
+Unified class mapping:
+- `wait_on` -> `yellow`
+- Directional labels (`RedLeft`, `GreenStraight`, etc.) -> base color
+- `flashing_red` -> dropped from training set entirely; treated as `off` at runtime (flashing red is too ambiguous and rare to model reliably, and incorrect classification would risk a false chime)
 
-### 9) Debug Overlay (`debug_overlay.py`)
-Responsibilities:
-- Draw all candidate boxes + primary highlight.
-- Annotate state/confidence/fusion per light.
-- Show current state machine state, buffer dots, ambient estimate, chime indicator, running TP/FP counters.
+Unified sample format:
+- Record = image path + bbox + normalized class + source dataset metadata
 
-## Data Contracts
-- Class labels across all modules are lowercase: `red|green|yellow|off`.
-- Frame coordinate system for bboxes is pixel-space `(x1,y1,x2,y2)`.
-- Reliability scores are clipped to `[0,1]`.
-- Lighting condition enum: `day|dusk|night`.
+### Dataset Build Steps
+1. Parse source annotations.
+2. Validate/resolve image paths.
+3. Crop bbox with 15% padding.
+4. Resize to 64x64.
+5. Stratified split (85/15 train/val).
+6. Emit class distribution + recommended sampler weights.
+7. Save manifests for reproducibility.
 
-## Failure Handling Strategy
-- Missing datasets/dependencies fail with explicit install/download instructions.
-- Empty or malformed inputs fail fast with actionable errors.
-- State machine resets after prolonged LOST timeout.
-- Chime never fires if speed gate or cooldown gate fails.
+### Data Quality Loop
+- Hard-negative mining from public data:
+  - tail lights, reflections, LED signs, lens flare.
+- Balance by lighting condition:
+  - day / dusk / night.
+- Balance by light scale:
+  - near / medium / distant.
 
-## Portability Notes (Python -> Swift)
-- Dataclass/enum structures map directly to Swift `struct`/`enum`.
-- Deterministic constants are centralized for tuning parity.
-- Components expose intermediate scores for debugging and telemetry.
+## Decision Layer
 
-## Recommended Tuning Order in Field Tests
-1. Reduce false positives via selector hysteresis + fusion thresholds.
-2. Recover missed greens via pre-chime required confirmations and buffer sizes.
-3. Rebalance latency vs precision using state-manager buffer and confidence gates.
+### Primary Light Selection
+`PrimaryLightSelector` score:
+- Area: 0.35
+- Horizontal center proximity: 0.25
+- Vertical prior (upper-center): 0.15
+- Temporal stability (IoU history): 0.15
+- Aspect-ratio validity: 0.10
+
+Stability behavior:
+- History window: 7 frames
+- Occlusion hold: 3 frames
+- Switch hysteresis to prevent wrong-light hopping
+
+### Confidence Fusion
+`ConfidenceFusionEngine` combines:
+- Classifier softmax confidence
+- Box size score
+- Box stability score
+- Ambient lighting score
+- Transition prior probability
+
+Transition prior matrix:
+- from red: to green 0.90
+- from green: to green 0.85
+- from yellow: to red 0.80
+- from off: to off 0.55
+
+Adaptive reliability thresholds:
+- day: 0.82
+- dusk: 0.87
+- night: 0.91
+
+### Pre-Chime Validation Burst
+`PreChimeValidator` safeguards final alert:
+- Freeze selected bbox
+- 6 passes at scales: 0.90, 0.95, 1.00, 1.05, 1.10, 1.00(+brightness)
+- Require 5/6 green confirmations above threshold
+- Time budget < 150 ms
+
+### Adaptive State Machine
+States:
+- `SEARCHING`
+- `TRACKING_RED`
+- `TENTATIVE_GREEN`
+- `CONFIRMED_GREEN`
+- `TRACKING_GREEN`
+- `TRACKING_YELLOW`
+- `LOST`
+
+Key gating logic:
+- LOST hold up to 45 frames
+- Speed gate: must be < 2 mph to chime
+- Cooldown: 150 frames after any chime
+- Adaptive smoothing window:
+  - day 5
+  - dusk 7
+  - night 10
+
+Speed gate source:
+- Primary: `CLLocationManager` GPS-derived speed (requires `whenInUse` location permission).
+- Fallback: if location permission is denied or GPS fix is unavailable, speed is treated as `unknown`.
+- Unknown speed behavior: chime is suppressed (fail-safe). The app must not chime when it cannot confirm the vehicle is stopped.
+- Implementation note: request `whenInUse` permission at onboarding; display a persistent "Speed unavailable — chime disabled" warning in the UI if permission is absent.
+
+Zero-detection handling:
+- If 5 or more consecutive frames return zero candidate boxes, the active track is considered lost and the state transitions to `LOST`.
+- A single empty frame does not break tracking; the selector occlusion hold (3 frames) absorbs momentary gaps.
+
+LOST state recovery:
+- During the 45-frame LOST hold: if a detection reappears with IoU ≥ 0.40 against the last known bbox, re-enter `TRACKING_RED` (never directly to `TENTATIVE_GREEN`).
+- Re-entry requires N=3 consecutive frames of classifier agreement on the recovered state before any green transition is allowed.
+- After 45 frames without recovery: transition to `SEARCHING`, resetting all temporal state.
+- Guard against mid-LOST red approach: if recovery detects green immediately after LOST, the 3-frame agreement requirement prevents a false chime from a missed red phase.
+
+## Evaluation Architecture
+
+`evaluate.py` computes:
+- True positive chimes
+- False positive chimes
+- False negatives (missed red->green)
+- Median and P95 latency
+- False positives per hour
+- Breakdowns:
+  - day/night
+  - single/multiple visible lights
+
+This evaluator is the final arbiter for model/pipeline promotion.
+
+### Evaluation Input Format
+
+`evaluate.py` operates on labeled clip manifests, not live video.
+
+Manifest format (JSON):
+```json
+[
+  {
+    "clip": "path/to/clip.mp4",
+    "fps": 30,
+    "lighting": "day|dusk|night",
+    "ground_truth_chimes": [
+      { "frame_start": 120, "frame_end": 135, "label": "red_to_green" }
+    ]
+  }
+]
+```
+
+Three supported evaluation modes:
+1. **Offline labeled clips** — recorded drive footage with annotated ground-truth chime events (primary mode).
+2. **Synthetic sequences** — programmatically generated frame sequences with known state transitions (used for unit-level regression on edge cases: flicker, occlusion, LOST recovery).
+3. **Drive replay** (Phase C) — full trip recordings replayed through the live pipeline at real time, logged and post-scored.
+
+Tolerance window: a chime is counted as a true positive if it fires within ±15 frames of a ground-truth event. Chimes outside any ground-truth window are false positives.
+
+## Debug and Observability
+
+`debug_overlay.py` visualizes:
+- All detections with state colors
+- Primary selected light highlight
+- Per-light classifier confidence + fusion score
+- State machine current state
+- Frame buffer dots
+- Ambient estimate
+- CHIME / NO CHIME indicator
+- Running TP/FP counters
+
+Operational telemetry (required):
+- Per-frame selected bbox and score components
+- Reliability score and active threshold
+- State transitions with reason codes
+- Chime events and suppression reasons
+- Speed gate status per chime decision (value, source, or `unknown`)
+
+## Deployment Architecture
+
+Build artifacts:
+- Detector Core ML package
+- Classifier Core ML package
+- Tunable constants bundle (versioned)
+
+Runtime compatibility checks:
+- Input/output names and shapes
+- Class label ordering
+- Model metadata version
+
+Versioning rule:
+- Detector version + classifier version + logic version must be pinned together in release metadata.
+
+## "Own Model" Upgrade Plan
+
+### Phase A: Strong Baseline
+- Keep existing detector.
+- Optimize classifier + decision layer until trust gate passes.
+
+### Phase B: Custom Detector
+- Build unified detection dataset from public sources.
+- Train teacher detector (`yolo26m`).
+- Train production candidate (`yolo26s`) for edge deployment.
+- Optionally train `yolo26n` fallback profile.
+- A/B compare against baseline on full chime evaluator.
+
+Implementation scripts for this phase:
+- `build_detection_dataset.py`: unified detector labels from public sets.
+- `train_detector.py`: teacher + student training workflow.
+- `eval_detector.py`: small-object/day-night-focused detector evaluation.
+
+Acceptance criteria in detector bake-off:
+- Candidate must reduce false positives per hour at equal or better TPR.
+- Candidate must stay within real-time on-device latency budget.
+- If detector mAP improves but FP/hour worsens, reject candidate.
+
+### Phase C: Production Hardening
+- Add regression suite across day/night/multi-light edge cases.
+- Add calibration set for threshold tuning.
+- Freeze release candidate and run extended drive replay evaluation.
+
+## Tunable Parameters (Most Important)
+
+### Highest impact on false positives
+1. Fusion adaptive thresholds (day/dusk/night)
+2. Selector hysteresis + track IoU threshold
+3. Pre-chime required confirmations
+
+### Highest impact on false negatives
+1. Detector recall on small/distant lights
+2. State-machine buffer sizes (especially night)
+3. Pre-chime burst acceptance strictness
+
+## Failure Modes and Mitigations
+- Wrong light selected at intersections:
+  - Mitigate with stronger selector priors + hysteresis + stability history.
+- Night-time glare/reflection false greens:
+  - Mitigate with ambient-aware thresholds + hard negatives + pre-chime burst.
+- Brief occlusions by trucks/buses:
+  - Mitigate with LOST hold and temporal memory.
+- Chime spam:
+  - Mitigate with cooldown + speed gate.
+
+## File Map
+
+### Python (ML pipeline)
+- Dataset: `dataset_pipeline.py`
+- Training: `train.py`
+- Export: `export_coreml.py`
+- Primary selection: `primary_light_selector.py`
+- Fusion: `confidence_fusion_engine.py`
+- Pre-chime: `pre_chime_validator.py`
+- State machine: `adaptive_state_manager.py`
+- Evaluation: `evaluate.py`
+- Overlay: `debug_overlay.py`
+
+### iOS (Swift runtime)
+- Camera capture: `CaptureSession.swift`
+- Detector inference: `TrafficLightDetector.swift`
+- Primary light selector: `PrimaryLightSelector.swift`
+- State classifier: `StateClassifier.swift`
+- Confidence fusion: `ConfidenceFusionEngine.swift`
+- Pre-chime validator: `PreChimeValidator.swift`
+- State machine: `AdaptiveStateManager.swift`
+- Speed gate: `SpeedGate.swift` (wraps `CLLocationManager`)
+- Chime output: `ChimeController.swift`
+- CarPlay integration: `CarPlaySceneDelegate.swift`
+- Debug overlay: `DebugOverlayView.swift`
+
+See `INTEGRATION_SPEC.md` for full iOS integration contract, input/output shapes, and CoreML model loading details.

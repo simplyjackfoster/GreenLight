@@ -87,5 +87,58 @@ class DataQualityLoopTests(unittest.TestCase):
         self.assertIsNone(out[0].scale)
 
 
+    def test_hard_negative_strata_do_not_poison_positive_cap(self) -> None:
+        # A single hard_negative record must not collapse the positive stratum cap.
+        image = Path("/tmp/fake.jpg")
+        records: list[AnnotationRecord] = []
+
+        # 100 positive records in one stratum
+        for _ in range(100):
+            records.append(
+                AnnotationRecord("x", image, (0, 0, 10, 10), "red", "red", lighting="day", scale="medium")
+            )
+        # 1 hard_negative record — rarest if it were included in the cap calculation
+        records.append(
+            AnnotationRecord("x", image, (0, 0, 5, 5), "hard_negative", "mined", lighting="day", scale="medium")
+        )
+
+        balanced = balance_records_by_strata(records, seed=0, balance_cap_multiplier=2.0)
+
+        positives = [r for r in balanced if r.label == "red"]
+        hard_negs = [r for r in balanced if r.label == "hard_negative"]
+
+        # Cap should be floor(100 * 2.0) = 200 for positives, so all 100 are kept.
+        self.assertEqual(len(positives), 100)
+        # Hard negatives pass through uncapped.
+        self.assertEqual(len(hard_negs), 1)
+
+    def test_balance_cap_below_1_is_rejected(self) -> None:
+        import argparse
+        from dataset_pipeline import validate_args
+
+        args = argparse.Namespace(
+            split_ratio=0.85,
+            padding=0.15,
+            crop_size=64,
+            min_box_area=16.0,
+            balance_cap=0.5,
+            hard_neg_ratio=0.2,
+            hard_neg_per_image=2,
+        )
+        with self.assertRaises(ValueError, msg="--balance-cap < 1.0 should be rejected"):
+            validate_args(args)
+
+    def test_stratum_cap_minimum_is_one(self) -> None:
+        # Even with balance_cap_multiplier=1.0 and rarest_count=1, no records are lost.
+        image = Path("/tmp/fake.jpg")
+        records = [
+            AnnotationRecord("x", image, (0, 0, 10, 10), "red", "red", lighting="day", scale="near"),
+            AnnotationRecord("x", image, (0, 0, 10, 10), "green", "green", lighting="day", scale="near"),
+        ]
+
+        balanced = balance_records_by_strata(records, seed=0, balance_cap_multiplier=1.0)
+        self.assertEqual(len(balanced), 2)
+
+
 if __name__ == "__main__":
     unittest.main()
