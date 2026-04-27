@@ -30,6 +30,7 @@ from typing import Any, Iterable
 import yaml
 from tqdm import tqdm
 import hashlib
+import numpy as np
 
 try:
     import cv2
@@ -56,6 +57,7 @@ DEFAULT_SEED = 20260426
 DEFAULT_JPEG_QUALITY = 95
 
 TARGET_CLASSES = ("red", "green", "yellow", "off", "hard_negative")
+CLASSIFIER_CLASSES = ("red", "green", "yellow", "off")
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
 LISA_BOX_FILENAME = "frameAnnotationsBOX.csv"
 
@@ -87,13 +89,35 @@ class AnnotationRecord:
     scale: str | None = None
 
 
+def read_image(path: Path) -> Any:
+    """Read an image through OpenCV, including Windows paths with Unicode characters."""
+    if cv2 is None:
+        raise RuntimeError("OpenCV is required. Install with: pip install opencv-python")
+
+    image = cv2.imread(str(path), cv2.IMREAD_COLOR)
+    if image is not None:
+        return image
+
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return None
+
+    arr = np.frombuffer(data, dtype=np.uint8)
+    if arr.size == 0:
+        return None
+    return cv2.imdecode(arr, cv2.IMREAD_COLOR)
+
+
 def deduplicate_records_by_phash(
     records: list[AnnotationRecord],
     threshold: int = 8,
 ) -> list[AnnotationRecord]:
     """Remove near-duplicate records using perceptual hashing.
 
-    When imagehash is unavailable, fall back to exact-byte deduplication.
+    When imagehash is unavailable, fall back to exact source-image and bbox
+    deduplication. Deduplication is scoped by label so visually identical
+    crops from different classes are still preserved for training.
     """
     if not records:
         return records
@@ -108,7 +132,8 @@ def deduplicate_records_by_phash(
             except Exception:
                 kept.append(record)
                 continue
-            key = (record.label, digest)
+            rounded_bbox = tuple(round(v, 2) for v in record.bbox_xyxy)
+            key = (record.label, digest, str(rounded_bbox))
             if key in seen_exact:
                 continue
             seen_exact.add(key)
@@ -120,8 +145,13 @@ def deduplicate_records_by_phash(
 
     for record in records:
         try:
-            with PILImage.open(record.image_path) as img:
-                h = imagehash.phash(img.convert("RGB"))
+            image = read_image(record.image_path)
+            if image is None:
+                kept.append(record)
+                continue
+            crop = crop_with_padding(image, record.bbox_xyxy, DEFAULT_PADDING_RATIO, DEFAULT_CROP_SIZE)
+            rgb_crop = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
+            h = imagehash.phash(PILImage.fromarray(rgb_crop))
         except Exception:
             kept.append(record)
             continue
@@ -245,7 +275,7 @@ def tag_records_lighting_scale(records: list[AnnotationRecord]) -> list[Annotati
     for rec in sorted_records:
         if rec.image_path != current_path:
             current_path = rec.image_path
-            current_image = cv2.imread(str(current_path), cv2.IMREAD_COLOR)
+            current_image = read_image(current_path)
             if current_image is None and current_path not in warned_paths:
                 logger.warning("Unreadable image during tagging: %s", current_path)
                 warned_paths.add(current_path)
@@ -319,7 +349,7 @@ def mine_hard_negatives(
             break
 
         image_records = by_image[image_path]
-        image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
+        image = read_image(image_path)
         if image is None:
             logger.warning("Unreadable image during hard-negative mining: %s", image_path)
             continue
@@ -756,6 +786,7 @@ def split_stratified(
     records: list[AnnotationRecord],
     split_ratio: float,
     seed: int,
+    target_classes: Iterable[str] = TARGET_CLASSES,
 ) -> tuple[list[AnnotationRecord], list[AnnotationRecord]]:
     by_class: dict[str, list[AnnotationRecord]] = defaultdict(list)
     for rec in records:
@@ -765,7 +796,7 @@ def split_stratified(
     train_records: list[AnnotationRecord] = []
     val_records: list[AnnotationRecord] = []
 
-    for class_name in TARGET_CLASSES:
+    for class_name in target_classes:
         items = by_class.get(class_name, [])
         if not items:
             continue
@@ -783,6 +814,11 @@ def split_stratified(
     rng.shuffle(train_records)
     rng.shuffle(val_records)
     return train_records, val_records
+
+
+def filter_records_by_classes(records: list[AnnotationRecord], classes: Iterable[str]) -> list[AnnotationRecord]:
+    allowed = set(classes)
+    return [rec for rec in records if rec.label in allowed]
 
 
 def crop_with_padding(
@@ -828,7 +864,7 @@ def export_crops(
     counts: Counter = Counter()
 
     for index, rec in enumerate(tqdm(records, desc=f"Export {split_name}", disable=not show_progress)):
-        image = cv2.imread(str(rec.image_path), cv2.IMREAD_COLOR)
+        image = read_image(rec.image_path)
         if image is None:
             logger.warning("Unreadable image: %s", rec.image_path)
             continue
@@ -859,8 +895,11 @@ def dataset_distribution(records: list[AnnotationRecord]) -> dict[str, Counter]:
     return report
 
 
-def compute_class_weights(train_counts: Counter) -> dict[str, float]:
-    return {cls: (1.0 / float(train_counts[cls])) for cls in TARGET_CLASSES if train_counts[cls] > 0}
+def compute_class_weights(
+    train_counts: Counter,
+    target_classes: Iterable[str] = TARGET_CLASSES,
+) -> dict[str, float]:
+    return {cls: (1.0 / float(train_counts[cls])) for cls in target_classes if train_counts[cls] > 0}
 
 
 def print_distribution(
@@ -868,30 +907,32 @@ def print_distribution(
     train_counts: Counter,
     val_counts: Counter,
     class_weights: dict[str, float],
+    target_classes: Iterable[str] = TARGET_CLASSES,
 ) -> None:
     logger.warning("\n=== Class Distribution Report ===")
     total_counts = Counter(rec.label for rec in all_records)
+    classes = tuple(target_classes)
 
     logger.warning("Overall:")
-    for cls in TARGET_CLASSES:
+    for cls in classes:
         logger.warning("  %s: %d", cls, total_counts[cls])
 
     by_dataset = dataset_distribution(all_records)
     logger.warning("By dataset:")
     for dataset_name in sorted(by_dataset):
-        line = ", ".join(f"{cls}={by_dataset[dataset_name][cls]}" for cls in TARGET_CLASSES)
+        line = ", ".join(f"{cls}={by_dataset[dataset_name][cls]}" for cls in classes)
         logger.warning("  %s: %s", dataset_name, line)
 
     logger.warning("Train split:")
-    for cls in TARGET_CLASSES:
+    for cls in classes:
         logger.warning("  %s: %d", cls, train_counts[cls])
 
     logger.warning("Val split:")
-    for cls in TARGET_CLASSES:
+    for cls in classes:
         logger.warning("  %s: %d", cls, val_counts[cls])
 
     logger.warning("Recommended WeightedRandomSampler class weights (1/freq):")
-    for cls in TARGET_CLASSES:
+    for cls in classes:
         logger.warning("  %s: %.8f", cls, class_weights.get(cls, 0.0))
 
 
@@ -901,6 +942,7 @@ def write_manifests(
     val_records: list[AnnotationRecord],
     class_weights: dict[str, float],
     args: argparse.Namespace,
+    target_classes: Iterable[str] = TARGET_CLASSES,
 ) -> None:
     manifests_dir = output_root / "manifests"
     manifests_dir.mkdir(parents=True, exist_ok=True)
@@ -930,7 +972,7 @@ def write_manifests(
                 )
 
     meta = {
-        "target_classes": list(TARGET_CLASSES),
+        "target_classes": list(target_classes),
         "class_weights": class_weights,
         "split_ratio": args.split_ratio,
         "padding_ratio": args.padding,
@@ -938,11 +980,12 @@ def write_manifests(
         "min_box_area": args.min_box_area,
         "seed": args.seed,
         "quality_loop": {
-            "enabled": not args.skip_quality_loop,
+            "enabled": args.quality_loop and not args.skip_quality_loop,
             "balance_cap": args.balance_cap,
             "hard_neg_ratio": args.hard_neg_ratio,
             "hard_neg_per_image": args.hard_neg_per_image,
         },
+        "include_hard_negatives": args.include_hard_negatives,
         "augmentations_note": (
             "Augmentations are intentionally excluded from preprocessing and should be "
             "applied in train.py: brightness/contrast/hue jitter, blur, rotation, "
@@ -1028,7 +1071,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--crop-size", type=int, default=DEFAULT_CROP_SIZE)
     parser.add_argument("--min-box-area", type=float, default=DEFAULT_MIN_BOX_AREA)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
-    parser.add_argument("--skip-quality-loop", action="store_true", help="Skip tagging/mining/balancing stage")
+    parser.add_argument(
+        "--quality-loop",
+        action="store_true",
+        help="Enable lighting/scale tagging, hard-negative mining, and stratum balancing.",
+    )
+    parser.add_argument("--skip-quality-loop", action="store_true", help="Deprecated alias; quality loop is opt-in.")
+    parser.add_argument(
+        "--include-hard-negatives",
+        action="store_true",
+        help="Keep mined hard_negative crops. Leave off for train.py's four-class state classifier.",
+    )
     parser.add_argument("--balance-cap", type=float, default=DEFAULT_BALANCE_CAP)
     parser.add_argument("--hard-neg-ratio", type=float, default=DEFAULT_HARD_NEG_RATIO)
     parser.add_argument("--hard-neg-per-image", type=int, default=DEFAULT_HARD_NEG_PER_IMAGE)
@@ -1094,19 +1147,26 @@ def main() -> None:
     if not all_records:
         raise SystemExit("No valid annotations found across datasets.")
 
+    run_quality_loop = args.quality_loop and not args.skip_quality_loop
+    target_classes = TARGET_CLASSES if args.include_hard_negatives else CLASSIFIER_CLASSES
+
     quality_records = run_data_quality_loop(
         all_records,
         seed=args.seed,
         balance_cap_multiplier=args.balance_cap,
         hard_neg_ratio=args.hard_neg_ratio,
         hard_neg_per_image=args.hard_neg_per_image,
-        skip_quality_loop=args.skip_quality_loop,
+        skip_quality_loop=not run_quality_loop,
     )
+    quality_records = filter_records_by_classes(quality_records, target_classes)
+
+    if not quality_records:
+        raise SystemExit(f"No records left after filtering to target classes: {', '.join(target_classes)}")
 
     if not args.skip_dedup:
         quality_records = deduplicate_records_by_phash(quality_records, threshold=args.phash_threshold)
 
-    train_records, val_records = split_stratified(quality_records, args.split_ratio, args.seed)
+    train_records, val_records = split_stratified(quality_records, args.split_ratio, args.seed, target_classes)
 
     if args.clean_output and args.output_root.exists():
         shutil.rmtree(args.output_root)
@@ -1129,9 +1189,9 @@ def main() -> None:
         show_progress,
     )
 
-    class_weights = compute_class_weights(train_counts)
-    print_distribution(quality_records, train_counts, val_counts, class_weights)
-    write_manifests(args.output_root, train_records, val_records, class_weights, args)
+    class_weights = compute_class_weights(train_counts, target_classes)
+    print_distribution(quality_records, train_counts, val_counts, class_weights, target_classes)
+    write_manifests(args.output_root, train_records, val_records, class_weights, args, target_classes)
 
     logger.warning("\nDone. Output directory: %s", args.output_root)
     logger.warning("Manifest files: %s", args.output_root / "manifests")

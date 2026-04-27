@@ -98,7 +98,9 @@ __pycache__/
 export/datasets/ci-smoke/
 export/datasets/crops/
 export/datasets/merged/
+export/datasets/raw/
 export/models/checkpoints/*
 export/models/coreml/*
+export/models/torch_cache/
 !export/models/checkpoints/.gitkeep
 !export/models/coreml/.gitkeep

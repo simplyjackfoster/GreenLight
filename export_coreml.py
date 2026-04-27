@@ -10,7 +10,9 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import shutil
 import sys
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -102,6 +104,11 @@ def parse_args() -> argparse.Namespace:
         "--skip-normalization-check",
         action="store_true",
         help="Skip multiarray vs image-mode normalization divergence check",
+    )
+    parser.add_argument(
+        "--skip-parity-check",
+        action="store_true",
+        help="Skip Core ML prediction parity validation. Useful on platforms where coremltools cannot run predictions.",
     )
     parser.add_argument("--no-progress", action="store_true")
     parser.add_argument("--verbose", action="store_true")
@@ -204,10 +211,13 @@ def build_val_dataset(data_root: Path, image_size: int) -> tuple[Any, dict[int, 
 
 
 def trace_model(model: nn.Module, image_size: int) -> Any:
+    original_device = next(model.parameters()).device
+    model = model.to("cpu")
     model.eval()
     example = torch.randn(1, 3, image_size, image_size)
     with torch.no_grad():
         traced = torch.jit.trace(model, example)
+    model.to(original_device)
     return traced
 
 
@@ -239,15 +249,29 @@ def convert_to_coreml(
             )
         ]
 
-    mlmodel = ct.convert(
-        traced_model,
-        convert_to="mlprogram",
-        inputs=inputs,
-        classifier_config=classifier_config,
-        compute_precision=ct.precision.FLOAT16,
-        compute_units=ct.ComputeUnit.ALL,
-    )
-    return mlmodel
+    try:
+        return ct.convert(
+            traced_model,
+            convert_to="mlprogram",
+            inputs=inputs,
+            classifier_config=classifier_config,
+            compute_precision=ct.precision.FLOAT16,
+            compute_units=ct.ComputeUnit.ALL,
+        )
+    except RuntimeError as exc:
+        if "BlobWriter not loaded" not in str(exc):
+            raise
+        logger.warning(
+            "ML Program export is unavailable in this coremltools runtime (%s); "
+            "falling back to neuralnetwork Core ML conversion.",
+            exc,
+        )
+        return ct.convert(
+            traced_model,
+            convert_to="neuralnetwork",
+            inputs=inputs,
+            classifier_config=classifier_config,
+        )
 
 
 def preprocess_for_pytorch(path: str, image_size: int) -> torch.Tensor:
@@ -412,6 +436,45 @@ def file_size_mb(path: Path) -> float:
     return size / (1024.0 * 1024.0)
 
 
+def save_model_package(mlmodel: Any, output_path: Path) -> None:
+    try:
+        mlmodel.save(str(output_path))
+        return
+    except Exception as exc:
+        if "libmodelpackage" not in str(exc) and output_path.suffix != ".mlpackage":
+            raise
+        logger.warning("Native package save unavailable (%s); writing package structure manually.", exc)
+
+    if output_path.exists():
+        if output_path.is_dir():
+            shutil.rmtree(output_path)
+        else:
+            output_path.unlink()
+
+    model_id = str(uuid.uuid4()).upper()
+    model_dir = output_path / "Data" / "com.apple.CoreML"
+    model_dir.mkdir(parents=True, exist_ok=True)
+
+    model_file = model_dir / "model.mlmodel"
+    spec = mlmodel.get_spec()
+    model_file.write_bytes(spec.SerializeToString())
+
+    manifest = {
+        "fileFormatVersion": "1.0.0",
+        "itemInfoEntries": {
+            model_id: {
+                "author": "com.apple.CoreML",
+                "description": "CoreML Model Specification",
+                "name": "model.mlmodel",
+                "path": "com.apple.CoreML/model.mlmodel",
+            }
+        },
+        "rootModelIdentifier": model_id,
+    }
+    with (output_path / "Manifest.json").open("w", encoding="utf-8") as handle:
+        json.dump(manifest, handle, indent=4)
+
+
 def main() -> None:
     ensure_python_version()
     args = parse_args()
@@ -451,36 +514,42 @@ def main() -> None:
         else "Traffic light crop image (RGB, 64x64)"
     )
 
-    mlmodel.output_description["classLabel"] = "Predicted traffic light class label"
-    mlmodel.output_description["classProbability"] = "Per-class probabilities"
+    if "classLabel" in mlmodel.output_description:
+        mlmodel.output_description["classLabel"] = "Predicted traffic light class label"
+    for output_name in mlmodel.output_description:
+        if output_name != "classLabel":
+            mlmodel.output_description[output_name] = "Per-class probabilities"
 
-    summary = validate_parity(
-        pytorch_model=model,
-        device=device,
-        coreml_model=mlmodel,
-        dataset=val_dataset,
-        class_labels=class_labels,
-        image_size=args.image_size,
-        input_type=args.input_type,
-        samples=args.validation_samples,
-        seed=args.seed,
-        show_progress=not args.no_progress,
-    )
-
-    logger.warning(
-        "Validation: samples=%d top1_matches=%d top1_match_rate=%.4f mean_abs_prob_diff=%.6f",
-        summary.samples_used,
-        summary.top1_matches,
-        summary.top1_match_rate,
-        summary.mean_abs_prob_diff,
-    )
-
-    if summary.samples_used > 0 and summary.top1_match_rate < 0.95:
-        raise SystemExit(
-            f"Core ML parity check failed: top1_match_rate={summary.top1_match_rate:.4f} < 0.95"
+    if args.skip_parity_check:
+        logger.warning("Skipping Core ML parity check by request.")
+    else:
+        summary = validate_parity(
+            pytorch_model=model,
+            device=device,
+            coreml_model=mlmodel,
+            dataset=val_dataset,
+            class_labels=class_labels,
+            image_size=args.image_size,
+            input_type=args.input_type,
+            samples=args.validation_samples,
+            seed=args.seed,
+            show_progress=not args.no_progress,
         )
 
-    if not args.skip_normalization_check:
+        logger.warning(
+            "Validation: samples=%d top1_matches=%d top1_match_rate=%.4f mean_abs_prob_diff=%.6f",
+            summary.samples_used,
+            summary.top1_matches,
+            summary.top1_match_rate,
+            summary.mean_abs_prob_diff,
+        )
+
+        if summary.samples_used > 0 and summary.top1_match_rate < 0.95:
+            raise SystemExit(
+                f"Core ML parity check failed: top1_match_rate={summary.top1_match_rate:.4f} < 0.95"
+            )
+
+    if not args.skip_normalization_check and not args.skip_parity_check:
         mean_divergence = check_normalization_divergence(
             traced_model=traced,
             primary_model=mlmodel,
@@ -494,7 +563,7 @@ def main() -> None:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     output_path = args.output_dir / f"{args.output_name}.mlpackage"
-    mlmodel.save(str(output_path))
+    save_model_package(mlmodel, output_path)
 
     size_mb = file_size_mb(output_path)
     logger.warning("Export complete: %s", output_path)
