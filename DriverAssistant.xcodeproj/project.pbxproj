@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 48;
+	objectVersion = 54;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -26,6 +26,8 @@
 		A1B1000B26046A1000000001 /* GeometryFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1000B26046A1000000001 /* GeometryFilterTests.swift */; };
 		A1B1000C26046A1000000001 /* ColorHeuristicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1000C26046A1000000001 /* ColorHeuristicTests.swift */; };
 		A1B1000D26046A1000000001 /* chime.aiff in Resources */ = {isa = PBXBuildFile; fileRef = A1A1000D26046A1000000001 /* chime.aiff */; };
+		A1B1000E26046A1000000001 /* yolo26nTraffic.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = A1A1000E26046A1000000001 /* yolo26nTraffic.mlpackage */; };
+		A1B1000F26046A1000000001 /* yolo11nTraffic.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = A1A1000F26046A1000000001 /* yolo11nTraffic.mlpackage */; };
 		FAB417F62099308400494E9C /* ViewControllerDetection.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB417F52099308400494E9C /* ViewControllerDetection.swift */; };
 		FAD5009F1ED668B60074D713 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD5009E1ED668B60074D713 /* AppDelegate.swift */; };
 		FAD500A11ED668B60074D713 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD500A01ED668B60074D713 /* ViewController.swift */; };
@@ -66,6 +68,8 @@
 		A1A1000B26046A1000000001 /* GeometryFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometryFilterTests.swift; sourceTree = "<group>"; };
 		A1A1000C26046A1000000001 /* ColorHeuristicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorHeuristicTests.swift; sourceTree = "<group>"; };
 		A1A1000D26046A1000000001 /* chime.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = chime.aiff; sourceTree = "<group>"; };
+		A1A1000E26046A1000000001 /* yolo26nTraffic.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper.mlpackage; path = yolo26nTraffic.mlpackage; sourceTree = "<group>"; };
+		A1A1000F26046A1000000001 /* yolo11nTraffic.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper.mlpackage; path = yolo11nTraffic.mlpackage; sourceTree = "<group>"; };
 		FAB417F52099308400494E9C /* ViewControllerDetection.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ViewControllerDetection.swift; sourceTree = "<group>"; };
 		FAD5009B1ED668B60074D713 /* DriverAssistant.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DriverAssistant.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FAD5009E1ED668B60074D713 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -108,6 +112,8 @@
 			children = (
 				6301F9A526A039600001E40E /* WebViewContainer.swift */,
 				63CB3CDC26E79E770015FFBD /* Constants.swift */,
+				A1A1000E26046A1000000001 /* yolo26nTraffic.mlpackage */,
+				A1A1000F26046A1000000001 /* yolo11nTraffic.mlpackage */,
 				6356002C26EBC86400A641D9 /* yolov5sTraffic.mlmodel */,
 			);
 			path = Models;
@@ -269,9 +275,10 @@
 		FAD500931ED668B60074D713 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
+				BuildIndependentTargetsInParallel = YES;
 				DefaultBuildSystemTypeForWorkspace = Latest;
 				LastSwiftUpdateCheck = 1300;
-				LastUpgradeCheck = 1250;
+				LastUpgradeCheck = 1620;
 				ORGANIZATIONNAME = "";
 				TargetAttributes = {
 					63CB353327187C7C0076324B = {
@@ -317,6 +324,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1B1000E26046A1000000001 /* yolo26nTraffic.mlpackage in Resources */,
+				A1B1000F26046A1000000001 /* yolo11nTraffic.mlpackage in Resources */,
 				A1B1000D26046A1000000001 /* chime.aiff in Resources */,
 				A1B1000926046A1000000001 /* PrivacyInfo.xcprivacy in Resources */,
 				FAD500A91ED668B60074D713 /* LaunchScreen.storyboard in Resources */,
@@ -403,7 +412,11 @@
 				DEVELOPMENT_TEAM = 8N9383UWC5;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
 				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -427,7 +440,11 @@
 				DEVELOPMENT_TEAM = 8N9383UWC5;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
 				MARKETING_VERSION = 1.0;
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jackfoster.greenlight.driverassistantTests;
@@ -478,6 +495,7 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -541,6 +559,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -552,7 +571,8 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
-				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 4.2;
 				VALIDATE_PRODUCT = YES;
 			};
@@ -568,7 +588,10 @@
 				DEVELOPMENT_TEAM = JJU38BPJ9P;
 				INFOPLIST_FILE = "$(SRCROOT)/DriverAssistant/Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 14.1;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.jackfoster.greenlight.driverassistant;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -587,7 +610,10 @@
 				DEVELOPMENT_TEAM = JJU38BPJ9P;
 				INFOPLIST_FILE = "$(SRCROOT)/DriverAssistant/Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 14.1;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.jackfoster.greenlight.driverassistant;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
