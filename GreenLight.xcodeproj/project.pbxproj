@@ -28,6 +28,8 @@
 		A1B1000D26046A1000000001 /* chime.aiff in Resources */ = {isa = PBXBuildFile; fileRef = A1A1000D26046A1000000001 /* chime.aiff */; };
 		A1B1000E26046A1000000001 /* yolo26nTraffic.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = A1A1000E26046A1000000001 /* yolo26nTraffic.mlpackage */; };
 		A1B1000F26046A1000000001 /* yolo11nTraffic.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = A1A1000F26046A1000000001 /* yolo11nTraffic.mlpackage */; };
+		A1B1001026046A1000000001 /* TelemetryLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1001026046A1000000001 /* TelemetryLogger.swift */; };
+		A1B1001126046A1000000001 /* TelemetryLoggerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1001126046A1000000001 /* TelemetryLoggerTests.swift */; };
 		FAB417F62099308400494E9C /* ViewControllerDetection.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB417F52099308400494E9C /* ViewControllerDetection.swift */; };
 		FAD5009F1ED668B60074D713 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD5009E1ED668B60074D713 /* AppDelegate.swift */; };
 		FAD500A11ED668B60074D713 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD500A01ED668B60074D713 /* ViewController.swift */; };
@@ -70,6 +72,8 @@
 		A1A1000D26046A1000000001 /* chime.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = chime.aiff; sourceTree = "<group>"; };
 		A1A1000E26046A1000000001 /* yolo26nTraffic.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper.mlpackage; path = yolo26nTraffic.mlpackage; sourceTree = "<group>"; };
 		A1A1000F26046A1000000001 /* yolo11nTraffic.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper.mlpackage; path = yolo11nTraffic.mlpackage; sourceTree = "<group>"; };
+		A1A1001026046A1000000001 /* TelemetryLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryLogger.swift; sourceTree = "<group>"; };
+		A1A1001126046A1000000001 /* TelemetryLoggerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryLoggerTests.swift; sourceTree = "<group>"; };
 		FAB417F52099308400494E9C /* ViewControllerDetection.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ViewControllerDetection.swift; sourceTree = "<group>"; };
 		FAD5009B1ED668B60074D713 /* GreenLight.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GreenLight.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FAD5009E1ED668B60074D713 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -136,6 +140,7 @@
 				A1A1000A26046A1000000001 /* LightStateManagerTests.swift */,
 				A1A1000B26046A1000000001 /* GeometryFilterTests.swift */,
 				A1A1000C26046A1000000001 /* ColorHeuristicTests.swift */,
+				A1A1001126046A1000000001 /* TelemetryLoggerTests.swift */,
 			);
 			path = GreenLightTests;
 			sourceTree = "<group>";
@@ -157,6 +162,14 @@
 				A1A1000526046A1000000001 /* DetectionState.swift */,
 			);
 			path = State;
+			sourceTree = "<group>";
+		};
+		A1C1000626046A1000000001 /* Telemetry */ = {
+			isa = PBXGroup;
+			children = (
+				A1A1001026046A1000000001 /* TelemetryLogger.swift */,
+			);
+			path = Telemetry;
 			sourceTree = "<group>";
 		};
 		A1C1000326046A1000000001 /* Audio */ = {
@@ -216,6 +229,7 @@
 				A1C1000426046A1000000001 /* App */,
 				A1C1000326046A1000000001 /* Audio */,
 				A1C1000126046A1000000001 /* Detection */,
+				A1C1000626046A1000000001 /* Telemetry */,
 				A1C1000526046A1000000001 /* Resources */,
 				A1C1000226046A1000000001 /* State */,
 				63131F0F26F5E264003E9111 /* Models */,
@@ -345,6 +359,7 @@
 				63CB353727187C7C0076324B /* GreenLightTests.swift in Sources */,
 				A1B1000A26046A1000000001 /* LightStateManagerTests.swift in Sources */,
 				A1B1000B26046A1000000001 /* GeometryFilterTests.swift in Sources */,
+				A1B1001126046A1000000001 /* TelemetryLoggerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -362,6 +377,7 @@
 				A1B1000326046A1000000001 /* GeometryFilter.swift in Sources */,
 				A1B1000426046A1000000001 /* ColorHeuristic.swift in Sources */,
 				A1B1000726046A1000000001 /* HUDView.swift in Sources */,
+				A1B1001026046A1000000001 /* TelemetryLogger.swift in Sources */,
 				6356002D26EBC86400A641D9 /* yolov5sTraffic.mlmodel in Sources */,
 				A1B1000126046A1000000001 /* Types.swift in Sources */,
 				FAD5009F1ED668B60074D713 /* AppDelegate.swift in Sources */,

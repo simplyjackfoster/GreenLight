@@ -53,6 +53,8 @@ class StateManagerConfig:
     cooldown_frames: int = 150
     confidence_gate: float = 0.82
     adaptive_buffer: BufferConfig = field(default_factory=BufferConfig)
+    tentative_green_timeout_frames: int = 15
+    speed_adaptive_buffer: bool = True
 
 
 @dataclass(frozen=True)
@@ -89,6 +91,7 @@ class AdaptiveStateManager:
 
         self.lost_counter = 0
         self.cooldown_remaining = 0
+        self._tentative_green_frames = 0
 
     def reset(self) -> None:
         self.state = TrafficState.SEARCHING
@@ -96,9 +99,10 @@ class AdaptiveStateManager:
         self.buffer.clear()
         self.lost_counter = 0
         self.cooldown_remaining = 0
+        self._tentative_green_frames = 0
 
     def update(self, item: StateUpdateInput) -> StateUpdateOutput:
-        self._set_buffer_size(item.lighting)
+        self._set_buffer_size(item.lighting, speed_mph=item.speed_mph)
         self._tick_cooldown()
 
         if item.observed_color is None or item.reliability_score < self.config.confidence_gate:
@@ -130,6 +134,7 @@ class AdaptiveStateManager:
         if self.state == TrafficState.TRACKING_RED:
             if stable_color == LightColor.GREEN:
                 self.state = TrafficState.TENTATIVE_GREEN
+                self._tentative_green_frames = 0
                 reason = "red_to_tentative_green"
             elif stable_color == LightColor.YELLOW:
                 self.state = TrafficState.TRACKING_YELLOW
@@ -137,13 +142,23 @@ class AdaptiveStateManager:
             return self._emit(reason=reason, chime=False)
 
         if self.state == TrafficState.TENTATIVE_GREEN:
+            timeout = self.config.tentative_green_timeout_frames
+            if timeout > 0:
+                self._tentative_green_frames += 1
+                if self._tentative_green_frames >= timeout:
+                    self._tentative_green_frames = 0
+                    self.state = TrafficState.SEARCHING
+                    return self._emit(reason="tentative_green_timeout", chime=False)
+
             if item.pre_chime_confirmed and stable_color == LightColor.GREEN:
+                self._tentative_green_frames = 0
                 self.state = TrafficState.CONFIRMED_GREEN
                 reason = "pre_chime_confirmed_green"
                 chime_fire = self._should_fire_chime(item.speed_mph)
                 if chime_fire:
                     self.cooldown_remaining = self.config.cooldown_frames
             elif stable_color in {LightColor.RED, LightColor.YELLOW}:
+                self._tentative_green_frames = 0
                 self.state = TrafficState.TRACKING_RED if stable_color == LightColor.RED else TrafficState.TRACKING_YELLOW
                 reason = "tentative_green_rejected"
             return self._emit(reason=reason, chime=chime_fire)
@@ -186,6 +201,7 @@ class AdaptiveStateManager:
         return self._emit(reason=reason, chime=False)
 
     def _handle_missing_observation(self) -> StateUpdateOutput:
+        self._tentative_green_frames = 0
         self.lost_counter += 1
         if self.lost_counter <= self.config.lost_hold_frames:
             self.state = TrafficState.LOST
@@ -194,13 +210,22 @@ class AdaptiveStateManager:
         self.reset()
         return self._emit(reason="lost_timeout_reset", chime=False)
 
-    def _set_buffer_size(self, lighting: LightingCondition) -> None:
+    def _set_buffer_size(self, lighting: LightingCondition, speed_mph: float = 0.0) -> None:
         if lighting == LightingCondition.DAY:
-            self.buffer_size = self.config.adaptive_buffer.day
+            base = self.config.adaptive_buffer.day
+            cap = self.config.adaptive_buffer.night
         elif lighting == LightingCondition.DUSK:
-            self.buffer_size = self.config.adaptive_buffer.dusk
+            base = self.config.adaptive_buffer.dusk
+            cap = self.config.adaptive_buffer.night
         else:
-            self.buffer_size = self.config.adaptive_buffer.night
+            base = self.config.adaptive_buffer.night
+            cap = self.config.adaptive_buffer.night
+
+        if self.config.speed_adaptive_buffer and speed_mph > 0:
+            extra = int((speed_mph / 60.0) * (cap - base))
+            self.buffer_size = min(base + extra, cap)
+        else:
+            self.buffer_size = base
 
         while len(self.buffer) > self.buffer_size:
             self.buffer.popleft()

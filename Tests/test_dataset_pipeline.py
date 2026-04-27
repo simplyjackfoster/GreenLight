@@ -8,6 +8,7 @@ from dataset_pipeline import (
     balance_records_by_strata,
     classify_lighting_from_luminance,
     classify_scale_from_fraction,
+    deduplicate_records_by_phash,
     is_hard_negative_candidate,
     run_data_quality_loop,
 )
@@ -138,6 +139,53 @@ class DataQualityLoopTests(unittest.TestCase):
 
         balanced = balance_records_by_strata(records, seed=0, balance_cap_multiplier=1.0)
         self.assertEqual(len(balanced), 2)
+
+
+class TestDeduplication(unittest.TestCase):
+    def test_identical_images_are_deduplicated(self):
+        import shutil
+        import tempfile
+        from PIL import Image
+
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            img = Image.new("RGB", (64, 64), color=(200, 50, 50))
+            p1 = tmp / "a.jpg"
+            p2 = tmp / "b.jpg"
+            img.save(p1)
+            img.save(p2)
+
+            records = [
+                AnnotationRecord("src", p1, (0, 0, 64, 64), "red", "red"),
+                AnnotationRecord("src", p2, (0, 0, 64, 64), "red", "red"),
+            ]
+            deduped = deduplicate_records_by_phash(records, threshold=8)
+            self.assertEqual(len(deduped), 1)
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_distinct_images_are_kept(self):
+        import shutil
+        import tempfile
+        from PIL import Image
+
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            img_red = Image.new("RGB", (64, 64), color=(200, 50, 50))
+            img_green = Image.new("RGB", (64, 64), color=(50, 200, 50))
+            p1 = tmp / "red.jpg"
+            p2 = tmp / "green.jpg"
+            img_red.save(p1)
+            img_green.save(p2)
+
+            records = [
+                AnnotationRecord("src", p1, (0, 0, 64, 64), "red", "red"),
+                AnnotationRecord("src", p2, (0, 0, 64, 64), "green", "green"),
+            ]
+            deduped = deduplicate_records_by_phash(records, threshold=8)
+            self.assertEqual(len(deduped), 2)
+        finally:
+            shutil.rmtree(tmp)
 
 
 if __name__ == "__main__":

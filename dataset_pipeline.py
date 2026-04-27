@@ -29,11 +29,22 @@ from typing import Any, Iterable
 
 import yaml
 from tqdm import tqdm
+import hashlib
 
 try:
     import cv2
 except ModuleNotFoundError:
     cv2 = None  # type: ignore[assignment]
+
+try:
+    import imagehash
+    from PIL import Image as PILImage
+
+    IMAGEHASH_AVAILABLE = True
+except ModuleNotFoundError:
+    imagehash = None  # type: ignore[assignment]
+    PILImage = None  # type: ignore[assignment]
+    IMAGEHASH_AVAILABLE = False
 
 MIN_PYTHON = (3, 10)
 
@@ -74,6 +85,57 @@ class AnnotationRecord:
     raw_label: str
     lighting: str | None = None
     scale: str | None = None
+
+
+def deduplicate_records_by_phash(
+    records: list[AnnotationRecord],
+    threshold: int = 8,
+) -> list[AnnotationRecord]:
+    """Remove near-duplicate records using perceptual hashing.
+
+    When imagehash is unavailable, fall back to exact-byte deduplication.
+    """
+    if not records:
+        return records
+
+    if not IMAGEHASH_AVAILABLE or imagehash is None or PILImage is None:
+        logger.warning("imagehash/Pillow not installed; falling back to exact-image deduplication.")
+        seen_exact: set[tuple[str, str]] = set()
+        kept: list[AnnotationRecord] = []
+        for record in records:
+            try:
+                digest = hashlib.sha256(record.image_path.read_bytes()).hexdigest()
+            except Exception:
+                kept.append(record)
+                continue
+            key = (record.label, digest)
+            if key in seen_exact:
+                continue
+            seen_exact.add(key)
+            kept.append(record)
+        return kept
+
+    seen_hashes: dict[str, list[imagehash.ImageHash]] = defaultdict(list)
+    kept: list[AnnotationRecord] = []
+
+    for record in records:
+        try:
+            with PILImage.open(record.image_path) as img:
+                h = imagehash.phash(img.convert("RGB"))
+        except Exception:
+            kept.append(record)
+            continue
+
+        prior_hashes = seen_hashes[record.label]
+        is_dup = any(abs(h - prev_h) <= threshold for prev_h in prior_hashes)
+        if not is_dup:
+            prior_hashes.append(h)
+            kept.append(record)
+
+    removed = len(records) - len(kept)
+    if removed:
+        logger.info("Deduplication removed %d near-duplicate records (threshold=%d)", removed, threshold)
+    return kept
 
 
 def ensure_python_version() -> None:
@@ -970,6 +1032,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--balance-cap", type=float, default=DEFAULT_BALANCE_CAP)
     parser.add_argument("--hard-neg-ratio", type=float, default=DEFAULT_HARD_NEG_RATIO)
     parser.add_argument("--hard-neg-per-image", type=int, default=DEFAULT_HARD_NEG_PER_IMAGE)
+    parser.add_argument(
+        "--phash-threshold",
+        type=int,
+        default=8,
+        help="Perceptual hash Hamming distance threshold for deduplication (0=identical, 8=similar)",
+    )
+    parser.add_argument("--skip-dedup", action="store_true", help="Skip perceptual hash deduplication")
 
     parser.add_argument("--clean-output", action="store_true", help="Delete existing output root before export")
     parser.add_argument("--strict", action="store_true", help="Fail fast on malformed/missing expected files")
@@ -995,6 +1064,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--hard-neg-ratio must be between 0 and 1")
     if args.hard_neg_per_image <= 0:
         raise ValueError("--hard-neg-per-image must be > 0")
+    if args.phash_threshold < 0:
+        raise ValueError("--phash-threshold must be >= 0")
 
 
 def main() -> None:
@@ -1031,6 +1102,9 @@ def main() -> None:
         hard_neg_per_image=args.hard_neg_per_image,
         skip_quality_loop=args.skip_quality_loop,
     )
+
+    if not args.skip_dedup:
+        quality_records = deduplicate_records_by_phash(quality_records, threshold=args.phash_threshold)
 
     train_records, val_records = split_stratified(quality_records, args.split_ratio, args.seed)
 

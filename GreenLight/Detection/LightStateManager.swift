@@ -30,7 +30,7 @@ final class LightStateManager {
     @discardableResult
     func update(
         detectedLight: DetectedLightColor,
-        isStationary: Bool,
+        speedStatus: SpeedStatus,
         now: Date = Date()
     ) -> Bool {
         if case .cooldown = internalState {
@@ -42,38 +42,40 @@ final class LightStateManager {
             cooldownStart = nil
         }
 
-        switch (internalState, detectedLight, isStationary) {
-        case (.idle, .red, _):
+        switch (internalState, detectedLight) {
+        case (.idle, .red):
             internalState = .trackingRed(count: 1)
 
-        case (.trackingRed(let count), .red, _):
+        case (.trackingRed(let count), .red):
             let next = count + 1
             internalState = next >= redConfirmCount ? .confirmedRed : .trackingRed(count: next)
 
-        case (.confirmedRed, .green, true):
-            internalState = .transitioningToGreen(count: 1)
-
-        case (.confirmedRed, .green, false):
-            internalState = .idle
-
-        case (.transitioningToGreen(let count), .green, true):
-            let next = count + 1
-            if next >= greenConfirmCount {
-                internalState = .cooldown
-                cooldownStart = now
-                return true
+        case (.confirmedRed, .green):
+            if speedStatus == .knownStationary {
+                internalState = .transitioningToGreen(count: 1)
+            } else {
+                internalState = .idle
             }
-            internalState = .transitioningToGreen(count: next)
 
-        case (.transitioningToGreen, .green, false):
-            internalState = .idle
+        case (.transitioningToGreen(let count), .green):
+            if speedStatus == .knownStationary {
+                let next = count + 1
+                if next >= greenConfirmCount {
+                    internalState = .cooldown
+                    cooldownStart = now
+                    return true
+                }
+                internalState = .transitioningToGreen(count: next)
+            } else {
+                internalState = .idle
+            }
 
-        case (.trackingRed, _, _),
-             (.confirmedRed, .none, _),
-             (.confirmedRed, .yellow, _),
-             (.transitioningToGreen, .none, _),
-             (.transitioningToGreen, .red, _),
-             (.transitioningToGreen, .yellow, _):
+        case (.trackingRed, _),
+             (.confirmedRed, .none),
+             (.confirmedRed, .yellow),
+             (.transitioningToGreen, .none),
+             (.transitioningToGreen, .red),
+             (.transitioningToGreen, .yellow):
             internalState = .idle
 
         default:
@@ -98,10 +100,17 @@ final class LightStateManager {
             return .green
         }
     }
+
+    var isTrackingRedOrTransitioning: Bool {
+        switch internalState {
+        case .trackingRed, .confirmedRed, .transitioningToGreen:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
-/// Observed-light fallback for noisy frame-to-frame transitions.
-/// Uses geometry-filtered light when available, but can fall back to any observed light.
 final class LightTransitionFallbackState {
 
     let cooldownDuration: TimeInterval
@@ -122,17 +131,17 @@ final class LightTransitionFallbackState {
     func update(
         filteredLight: DetectedLightColor,
         observedLight: DetectedLightColor,
-        isStationary: Bool,
+        speedStatus: SpeedStatus,
         now: Date = Date()
     ) -> Bool {
-        let effectiveLight = effectiveLight(filteredLight: filteredLight, observedLight: observedLight)
+        let effectiveLight = resolvedLight(filteredLight: filteredLight, observedLight: observedLight)
 
         if effectiveLight == .red {
             lastRedSeenAt = now
             return false
         }
 
-        guard effectiveLight == .green, isStationary else { return false }
+        guard effectiveLight == .green, speedStatus == .knownStationary else { return false }
 
         guard let lastRedSeenAt else { return false }
         let elapsedSinceRed = now.timeIntervalSince(lastRedSeenAt)
@@ -155,7 +164,7 @@ final class LightTransitionFallbackState {
         lastChimeAt = nil
     }
 
-    private func effectiveLight(
+    private func resolvedLight(
         filteredLight: DetectedLightColor,
         observedLight: DetectedLightColor
     ) -> DetectedLightColor {
