@@ -12,6 +12,13 @@ MODEL_NAME="${2:-$(basename "$MODEL_PATH")}"
 MODEL_NAME="${MODEL_NAME%.mlpackage}"
 MODEL_NAME="${MODEL_NAME%.mlmodel}"
 APP_MODELS_DIR="${ROOT_DIR}/DriverAssistant/Models"
+MODEL_BASENAME="$(basename "$MODEL_PATH")"
+MODEL_EXT=""
+if [[ "$MODEL_BASENAME" == *.mlpackage ]]; then
+  MODEL_EXT=".mlpackage"
+elif [[ "$MODEL_BASENAME" == *.mlmodel ]]; then
+  MODEL_EXT=".mlmodel"
+fi
 
 if [[ ! -e "$MODEL_PATH" ]]; then
   echo "Model path does not exist: $MODEL_PATH"
@@ -19,16 +26,19 @@ if [[ ! -e "$MODEL_PATH" ]]; then
 fi
 
 mkdir -p "$APP_MODELS_DIR"
+DEST_PATH="${APP_MODELS_DIR}/${MODEL_NAME}${MODEL_EXT}"
 
 if [[ -d "$MODEL_PATH" ]]; then
-  cp -R "$MODEL_PATH" "$APP_MODELS_DIR/"
+  rm -rf "$DEST_PATH"
+  cp -R "$MODEL_PATH" "$DEST_PATH"
 else
-  cp "$MODEL_PATH" "$APP_MODELS_DIR/"
+  cp "$MODEL_PATH" "$DEST_PATH"
 fi
 
 echo "Installed model into: $APP_MODELS_DIR"
+echo "Installed as: $(basename "$DEST_PATH")"
 echo "Next steps:"
 echo "1) Open DriverAssistant.xcodeproj"
 echo "2) Ensure the new model is included in app target's Copy Bundle Resources"
 echo "3) If needed, update model filename in DriverAssistant/ViewControllers/ViewControllerDetection.swift"
-echo "   Current lookup expects: yolov5sTraffic.mlmodelc"
+echo "   Current lookup order: yolo26nTraffic(.mlmodelc/.mlpackage) -> yolo11nTraffic(.mlmodelc/.mlpackage) -> yolov8nTraffic(.mlmodelc/.mlpackage) -> yolov5sTraffic(.mlmodelc/.mlmodel)"

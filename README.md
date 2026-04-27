@@ -56,6 +56,28 @@ It includes:
 - Merge/validation steps
 - CoreML install path into `DriverAssistant/Models`
 
+## Recommended: Export YOLO26n for iOS
+For current Ultralytics releases, use `yolo26n` and export directly to CoreML:
+
+```console
+pip install -U ultralytics
+yolo export model=yolo26n.pt format=coreml nms=True int8=True
+./scripts/install_coreml_model.sh yolo26n.mlpackage yolo26nTraffic
+```
+
+If `yolo26n` export fails in your local environment, use:
+
+```console
+yolo export model=yolo11n.pt format=coreml nms=True int8=True
+./scripts/install_coreml_model.sh yolo11n.mlpackage yolo11nTraffic
+```
+
+The app now looks for models in this order:
+1. `yolo26nTraffic` (`.mlmodelc`, then `.mlpackage`)
+2. `yolo11nTraffic` (`.mlmodelc`, then `.mlpackage`)
+3. `yolov8nTraffic` (`.mlmodelc`, then `.mlpackage`)
+4. `yolov5sTraffic` (`.mlmodelc`, then `.mlmodel`)
+
 ## Exporting the YOLOv5 model into CoreML
 Although there is an export function provided by Glenn Jocher and the YOLOv5 team, the trace function used in it does not export many of the post-processing steps such as adjusting the coordinates to be relative to the image rather than the grid cell. Fortunately, Leon de Andrade and Dennis Post (Thank you very much) have provided a repo to export the YOLOv5 model with all of these post-processing steps [here](https://github.com/dbsystel/yolov5-coreml-tools).
 

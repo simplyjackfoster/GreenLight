@@ -16,13 +16,14 @@ import argparse
 import csv
 import json
 import logging
+import math
 import random
 import shutil
 import sys
 import textwrap
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -43,12 +44,23 @@ DEFAULT_MIN_BOX_AREA = 16.0
 DEFAULT_SEED = 20260426
 DEFAULT_JPEG_QUALITY = 95
 
-TARGET_CLASSES = ("red", "green", "yellow", "off")
+TARGET_CLASSES = ("red", "green", "yellow", "off", "hard_negative")
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
 LISA_BOX_FILENAME = "frameAnnotationsBOX.csv"
 
 SPLIT_TRAIN = "train"
 SPLIT_VAL = "val"
+
+LIGHTING_NIGHT_MAX = 85.0
+LIGHTING_DAY_MIN = 170.0
+SCALE_DISTANT_MAX = 0.01
+SCALE_NEAR_MIN = 0.05
+DEFAULT_BALANCE_CAP = 2.0
+DEFAULT_HARD_NEG_RATIO = 0.20
+DEFAULT_HARD_NEG_PER_IMAGE = 2
+HARD_NEG_MIN_AREA_SCALE = 0.5
+HARD_NEG_MAX_AREA_SCALE = 2.0
+HARD_NEG_MAX_IOU = 0.1
 
 logger = logging.getLogger("dataset_pipeline")
 
@@ -60,6 +72,8 @@ class AnnotationRecord:
     bbox_xyxy: tuple[float, float, float, float]
     label: str
     raw_label: str
+    lighting: str | None = None
+    scale: str | None = None
 
 
 def ensure_python_version() -> None:
@@ -73,6 +87,271 @@ def clamp(value: int, low: int, high: int) -> int:
 
 def bbox_area(x1: float, y1: float, x2: float, y2: float) -> float:
     return max(0.0, x2 - x1) * max(0.0, y2 - y1)
+
+
+def bbox_iou(
+    lhs: tuple[float, float, float, float],
+    rhs: tuple[float, float, float, float],
+) -> float:
+    lx1, ly1, lx2, ly2 = lhs
+    rx1, ry1, rx2, ry2 = rhs
+
+    inter_x1 = max(lx1, rx1)
+    inter_y1 = max(ly1, ry1)
+    inter_x2 = min(lx2, rx2)
+    inter_y2 = min(ly2, ry2)
+    inter_area = bbox_area(inter_x1, inter_y1, inter_x2, inter_y2)
+    if inter_area <= 0:
+        return 0.0
+
+    union_area = bbox_area(*lhs) + bbox_area(*rhs) - inter_area
+    if union_area <= 0:
+        return 0.0
+    return inter_area / union_area
+
+
+def classify_lighting_from_luminance(mean_luminance: float) -> str:
+    if mean_luminance < LIGHTING_NIGHT_MAX:
+        return "night"
+    if mean_luminance > LIGHTING_DAY_MIN:
+        return "day"
+    return "dusk"
+
+
+def classify_scale_from_fraction(area_fraction: float) -> str:
+    if area_fraction < SCALE_DISTANT_MAX:
+        return "distant"
+    if area_fraction > SCALE_NEAR_MIN:
+        return "near"
+    return "medium"
+
+
+def _bbox_to_int_xyxy(
+    bbox_xyxy: tuple[float, float, float, float],
+    width: int,
+    height: int,
+) -> tuple[int, int, int, int]:
+    x1, y1, x2, y2 = bbox_xyxy
+    ix1 = clamp(int(math.floor(min(x1, x2))), 0, max(0, width - 1))
+    iy1 = clamp(int(math.floor(min(y1, y2))), 0, max(0, height - 1))
+    ix2 = clamp(int(math.ceil(max(x1, x2))), 1, width)
+    iy2 = clamp(int(math.ceil(max(y1, y2))), 1, height)
+    return ix1, iy1, ix2, iy2
+
+
+def _compute_tags_for_bbox(
+    image: Any,
+    bbox_xyxy: tuple[float, float, float, float],
+) -> tuple[str | None, str | None]:
+    if cv2 is None:
+        return None, None
+
+    height, width = image.shape[:2]
+    if height <= 0 or width <= 0:
+        return None, None
+
+    x1, y1, x2, y2 = _bbox_to_int_xyxy(bbox_xyxy, width=width, height=height)
+    if x2 <= x1 or y2 <= y1:
+        return None, None
+
+    crop = image[y1:y2, x1:x2]
+    if crop.size == 0:
+        return None, None
+
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    mean_luminance = float(gray.mean())
+    lighting = classify_lighting_from_luminance(mean_luminance)
+
+    bbox_fraction = bbox_area(float(x1), float(y1), float(x2), float(y2)) / float(width * height)
+    scale = classify_scale_from_fraction(bbox_fraction)
+    return lighting, scale
+
+
+def tag_records_lighting_scale(records: list[AnnotationRecord]) -> list[AnnotationRecord]:
+    if cv2 is None:
+        logger.warning("OpenCV unavailable; skipping lighting/scale tagging.")
+        return records
+
+    tagged: list[AnnotationRecord] = []
+    image_cache: dict[Path, Any] = {}
+    warned_paths: set[Path] = set()
+
+    for rec in records:
+        image = image_cache.get(rec.image_path)
+        if image is None and rec.image_path not in image_cache:
+            image = cv2.imread(str(rec.image_path), cv2.IMREAD_COLOR)
+            image_cache[rec.image_path] = image
+            if image is None and rec.image_path not in warned_paths:
+                logger.warning("Unreadable image during tagging: %s", rec.image_path)
+                warned_paths.add(rec.image_path)
+
+        if image is None:
+            tagged.append(replace(rec, lighting=None, scale=None))
+            continue
+
+        lighting, scale = _compute_tags_for_bbox(image, rec.bbox_xyxy)
+        tagged.append(replace(rec, lighting=lighting, scale=scale))
+
+    return tagged
+
+
+def _make_random_candidate_bbox(
+    image_width: int,
+    image_height: int,
+    reference_bbox: tuple[float, float, float, float],
+    rng: random.Random,
+) -> tuple[float, float, float, float]:
+    ref_width = max(1.0, abs(reference_bbox[2] - reference_bbox[0]))
+    ref_height = max(1.0, abs(reference_bbox[3] - reference_bbox[1]))
+
+    area_scale = rng.uniform(HARD_NEG_MIN_AREA_SCALE, HARD_NEG_MAX_AREA_SCALE)
+    side_scale = math.sqrt(area_scale)
+    cand_width = max(1, min(image_width, int(round(ref_width * side_scale))))
+    cand_height = max(1, min(image_height, int(round(ref_height * side_scale))))
+
+    max_x1 = max(0, image_width - cand_width)
+    max_y1 = max(0, image_height - cand_height)
+    cand_x1 = rng.randint(0, max_x1)
+    cand_y1 = rng.randint(0, max_y1)
+    cand_x2 = cand_x1 + cand_width
+    cand_y2 = cand_y1 + cand_height
+    return float(cand_x1), float(cand_y1), float(cand_x2), float(cand_y2)
+
+
+def is_hard_negative_candidate(
+    candidate_bbox: tuple[float, float, float, float],
+    ground_truth_bboxes: list[tuple[float, float, float, float]],
+) -> bool:
+    return all(bbox_iou(candidate_bbox, gt_bbox) < HARD_NEG_MAX_IOU for gt_bbox in ground_truth_bboxes)
+
+
+def mine_hard_negatives(
+    records: list[AnnotationRecord],
+    seed: int,
+    hard_neg_ratio: float,
+    hard_neg_per_image: int,
+) -> list[AnnotationRecord]:
+    if cv2 is None:
+        logger.warning("OpenCV unavailable; skipping hard-negative mining.")
+        return []
+
+    positives = [rec for rec in records if rec.label != "hard_negative"]
+    max_hard_negatives = int(len(positives) * hard_neg_ratio)
+    if max_hard_negatives <= 0:
+        return []
+
+    by_image: dict[Path, list[AnnotationRecord]] = defaultdict(list)
+    for rec in positives:
+        by_image[rec.image_path].append(rec)
+
+    rng = random.Random(seed)
+    hard_negatives: list[AnnotationRecord] = []
+    image_paths = list(by_image.keys())
+    rng.shuffle(image_paths)
+
+    for image_path in image_paths:
+        if len(hard_negatives) >= max_hard_negatives:
+            break
+
+        image_records = by_image[image_path]
+        image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
+        if image is None:
+            logger.warning("Unreadable image during hard-negative mining: %s", image_path)
+            continue
+
+        image_height, image_width = image.shape[:2]
+        if image_height <= 0 or image_width <= 0:
+            continue
+
+        ground_truth_bboxes = [rec.bbox_xyxy for rec in image_records]
+        attempts = rng.randint(1, max(1, hard_neg_per_image))
+
+        for _ in range(attempts):
+            if len(hard_negatives) >= max_hard_negatives:
+                break
+            reference = rng.choice(ground_truth_bboxes)
+            candidate_bbox = _make_random_candidate_bbox(image_width, image_height, reference, rng)
+            if not is_hard_negative_candidate(candidate_bbox, ground_truth_bboxes):
+                continue
+
+            lighting, scale = _compute_tags_for_bbox(image, candidate_bbox)
+            hard_negatives.append(
+                AnnotationRecord(
+                    dataset=image_records[0].dataset,
+                    image_path=image_path,
+                    bbox_xyxy=candidate_bbox,
+                    label="hard_negative",
+                    raw_label="mined",
+                    lighting=lighting,
+                    scale=scale,
+                )
+            )
+
+    if not hard_negatives:
+        logger.warning("Zero hard negatives mined; continuing without hard negatives.")
+    return hard_negatives
+
+
+def balance_records_by_strata(
+    records: list[AnnotationRecord],
+    seed: int,
+    balance_cap_multiplier: float,
+) -> list[AnnotationRecord]:
+    tagged_by_stratum: dict[tuple[str, str, str], list[AnnotationRecord]] = defaultdict(list)
+    untagged: list[AnnotationRecord] = []
+
+    for rec in records:
+        if rec.lighting is None or rec.scale is None:
+            untagged.append(rec)
+            continue
+        tagged_by_stratum[(rec.lighting, rec.scale, rec.label)].append(rec)
+
+    if not tagged_by_stratum:
+        logger.warning("All records are untagged; skipping stratum balancing.")
+        return records
+
+    rarest_count = min(len(items) for items in tagged_by_stratum.values())
+    stratum_cap = math.floor(rarest_count * balance_cap_multiplier)
+    rng = random.Random(seed)
+
+    balanced: list[AnnotationRecord] = []
+    for items in tagged_by_stratum.values():
+        if len(items) <= stratum_cap:
+            balanced.extend(items)
+            continue
+        if stratum_cap <= 0:
+            continue
+        balanced.extend(rng.sample(items, stratum_cap))
+
+    balanced.extend(untagged)
+    rng.shuffle(balanced)
+    return balanced
+
+
+def run_data_quality_loop(
+    records: list[AnnotationRecord],
+    seed: int,
+    balance_cap_multiplier: float,
+    hard_neg_ratio: float,
+    hard_neg_per_image: int,
+    skip_quality_loop: bool = False,
+) -> list[AnnotationRecord]:
+    if skip_quality_loop:
+        return records
+
+    tagged_records = tag_records_lighting_scale(records)
+    hard_negatives = mine_hard_negatives(
+        tagged_records,
+        seed=seed,
+        hard_neg_ratio=hard_neg_ratio,
+        hard_neg_per_image=hard_neg_per_image,
+    )
+    with_hard_negatives = tagged_records + hard_negatives
+    return balance_records_by_strata(
+        with_hard_negatives,
+        seed=seed,
+        balance_cap_multiplier=balance_cap_multiplier,
+    )
 
 
 def normalize_lisa_label(raw_label: str) -> str | None:
@@ -554,10 +833,25 @@ def write_manifests(
         path = manifests_dir / f"{name}_records.csv"
         with path.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.writer(handle)
-            writer.writerow(["dataset", "image_path", "x1", "y1", "x2", "y2", "label", "raw_label"])
+            writer.writerow(
+                ["dataset", "image_path", "x1", "y1", "x2", "y2", "label", "raw_label", "lighting", "scale"]
+            )
             for rec in records:
                 x1, y1, x2, y2 = rec.bbox_xyxy
-                writer.writerow([rec.dataset, str(rec.image_path), x1, y1, x2, y2, rec.label, rec.raw_label])
+                writer.writerow(
+                    [
+                        rec.dataset,
+                        str(rec.image_path),
+                        x1,
+                        y1,
+                        x2,
+                        y2,
+                        rec.label,
+                        rec.raw_label,
+                        rec.lighting,
+                        rec.scale,
+                    ]
+                )
 
     meta = {
         "target_classes": list(TARGET_CLASSES),
@@ -567,6 +861,12 @@ def write_manifests(
         "crop_size": args.crop_size,
         "min_box_area": args.min_box_area,
         "seed": args.seed,
+        "quality_loop": {
+            "enabled": not args.skip_quality_loop,
+            "balance_cap": args.balance_cap,
+            "hard_neg_ratio": args.hard_neg_ratio,
+            "hard_neg_per_image": args.hard_neg_per_image,
+        },
         "augmentations_note": (
             "Augmentations are intentionally excluded from preprocessing and should be "
             "applied in train.py: brightness/contrast/hue jitter, blur, rotation, "
@@ -639,7 +939,7 @@ def parse_bstld_yaml_args(bstld_root: Path, names_csv: str) -> list[Path]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Create 64x64 red/green/yellow/off crops from LISA + S2TLD + BSTLD"
+        description="Create 64x64 red/green/yellow/off/hard_negative crops from LISA + S2TLD + BSTLD"
     )
     parser.add_argument("--lisa-root", type=Path, default=Path("export/datasets/raw/lisa"))
     parser.add_argument("--s2tld-root", type=Path, default=Path("export/datasets/raw/s2tld"))
@@ -652,6 +952,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--crop-size", type=int, default=DEFAULT_CROP_SIZE)
     parser.add_argument("--min-box-area", type=float, default=DEFAULT_MIN_BOX_AREA)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument("--skip-quality-loop", action="store_true", help="Skip tagging/mining/balancing stage")
+    parser.add_argument("--balance-cap", type=float, default=DEFAULT_BALANCE_CAP)
+    parser.add_argument("--hard-neg-ratio", type=float, default=DEFAULT_HARD_NEG_RATIO)
+    parser.add_argument("--hard-neg-per-image", type=int, default=DEFAULT_HARD_NEG_PER_IMAGE)
 
     parser.add_argument("--clean-output", action="store_true", help="Delete existing output root before export")
     parser.add_argument("--strict", action="store_true", help="Fail fast on malformed/missing expected files")
@@ -671,6 +975,12 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--crop-size must be > 0")
     if args.min_box_area < 0.0:
         raise ValueError("--min-box-area must be >= 0")
+    if args.balance_cap <= 0.0:
+        raise ValueError("--balance-cap must be > 0")
+    if not (0.0 <= args.hard_neg_ratio <= 1.0):
+        raise ValueError("--hard-neg-ratio must be between 0 and 1")
+    if args.hard_neg_per_image <= 0:
+        raise ValueError("--hard-neg-per-image must be > 0")
 
 
 def main() -> None:
@@ -699,7 +1009,16 @@ def main() -> None:
     if not all_records:
         raise SystemExit("No valid annotations found across datasets.")
 
-    train_records, val_records = split_stratified(all_records, args.split_ratio, args.seed)
+    quality_records = run_data_quality_loop(
+        all_records,
+        seed=args.seed,
+        balance_cap_multiplier=args.balance_cap,
+        hard_neg_ratio=args.hard_neg_ratio,
+        hard_neg_per_image=args.hard_neg_per_image,
+        skip_quality_loop=args.skip_quality_loop,
+    )
+
+    train_records, val_records = split_stratified(quality_records, args.split_ratio, args.seed)
 
     if args.clean_output and args.output_root.exists():
         shutil.rmtree(args.output_root)
@@ -723,7 +1042,7 @@ def main() -> None:
     )
 
     class_weights = compute_class_weights(train_counts)
-    print_distribution(all_records, train_counts, val_counts, class_weights)
+    print_distribution(quality_records, train_counts, val_counts, class_weights)
     write_manifests(args.output_root, train_records, val_records, class_weights, args)
 
     logger.warning("\nDone. Output directory: %s", args.output_root)

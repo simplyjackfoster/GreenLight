@@ -15,14 +15,33 @@ class ViewControllerDetection: ViewController {
     private var previousObservedLight: DetectedLightColor = .none
     private let fallbackState = LightTransitionFallbackState()
 
+    private func resolveModelURL() -> URL? {
+        let candidates: [(String, String)] = [
+            ("yolo26nTraffic", "mlmodelc"),
+            ("yolo26nTraffic", "mlpackage"),
+            ("yolo11nTraffic", "mlmodelc"),
+            ("yolo11nTraffic", "mlpackage"),
+            ("yolov8nTraffic", "mlmodelc"),
+            ("yolov8nTraffic", "mlpackage"),
+            ("yolov5sTraffic", "mlmodelc"),
+            ("yolov5sTraffic", "mlmodel"),
+        ]
+
+        for (name, ext) in candidates {
+            if let url = Bundle.main.url(forResource: name, withExtension: ext) {
+                return url
+            }
+        }
+        return nil
+    }
+
     @discardableResult
     func setupVision() -> NSError? {
-        guard let modelURL = Bundle.main.url(forResource: "yolov5sTraffic", withExtension: "mlmodelc")
-            ?? Bundle.main.url(forResource: "yolov8nTraffic", withExtension: "mlpackage") else {
+        guard let modelURL = resolveModelURL() else {
             return NSError(
                 domain: "ViewControllerDetection",
                 code: -1,
-                userInfo: [NSLocalizedDescriptionKey: "ML model not found"]
+                userInfo: [NSLocalizedDescriptionKey: "ML model not found (expected yolo26nTraffic/yolo11nTraffic/yolov8nTraffic/yolov5sTraffic)"]
             )
         }
 
