@@ -170,6 +170,12 @@ class ViewControllerDetection: ViewController {
             return .yellow
         case "traffic light":
             guard let pixelBuffer = currentPixelBuffer else { return .unknown }
+            if let modelColor = TrafficLightStateClassifier.shared.classify(
+                pixelBuffer: pixelBuffer,
+                boundingBox: box
+            ), modelColor != .unknown, modelColor != .none {
+                return modelColor
+            }
             return ColorHeuristic.analyze(pixelBuffer: pixelBuffer, boundingBox: box)
         default:
             return .none
