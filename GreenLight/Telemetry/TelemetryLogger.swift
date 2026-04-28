@@ -6,7 +6,6 @@ struct TelemetryEvent: Encodable {
     let observedLight: String
     let speedStatus: String
     let displayState: String
-    let lensSmudged: Bool
 
     init(result: DetectionResult, speedStatus: SpeedStatus) {
         timestamp = ISO8601DateFormatter().string(from: Date())
@@ -14,7 +13,6 @@ struct TelemetryEvent: Encodable {
         observedLight = result.observedColor.telemetryLabel
         self.speedStatus = speedStatus.telemetryLabel
         displayState = result.lightColor.telemetryLabel
-        lensSmudged = result.lensSmudged
     }
 }
 

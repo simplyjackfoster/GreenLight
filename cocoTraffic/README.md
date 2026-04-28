@@ -10,7 +10,6 @@ We refined the traffic light class (index 10) of the COCO dataset into the three
 ![Example](all_traffic_lights.png "COCO Traffic dataset example")
 *Figure: Distribution of the traffic light annotations. Contains all traffic light annotations from train2017 and val2017.*
 
-For details on the datasets also see our [post](https://www.neuralception.com/cocodatasetextension/).
 
 ## Downloads
 

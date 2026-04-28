@@ -1,17 +1,127 @@
+import CoreML
+import CoreVideo
 import Foundation
+import Vision
 
 actor DetectionEngine: DetectionEngineProtocol {
 
     let results: AsyncStream<DetectionResult>
     private let resultsContinuation: AsyncStream<DetectionResult>.Continuation
+    private var consumeTask: Task<Void, Never>?
+    private var model: VNCoreMLModel?
 
     init() {
         var cont: AsyncStream<DetectionResult>.Continuation!
         results = AsyncStream(bufferingPolicy: .bufferingNewest(1)) { cont = $0 }
         resultsContinuation = cont
+        model = Self.loadVisionModel()
     }
 
     func attach(camera: any CameraServiceProtocol) async {
-        // TODO: implement inference pipeline
+        consumeTask?.cancel()
+        let model = self.model
+        consumeTask = Task { [weak self] in
+            guard let self else { return }
+            for await pixelBuffer in camera.frames {
+                if Task.isCancelled { break }
+                let result = Self.runInference(on: pixelBuffer, model: model)
+                await self.emit(result)
+            }
+        }
+    }
+
+    private func emit(_ result: DetectionResult) {
+        resultsContinuation.yield(result)
+    }
+
+    private static func runInference(on pixelBuffer: CVPixelBuffer, model: VNCoreMLModel?) -> DetectionResult {
+        guard let model else {
+            return DetectionResult(lightColor: .unknown, observedColor: .unknown, boundingBoxes: [])
+        }
+        let request = VNCoreMLRequest(model: model)
+        request.imageCropAndScaleOption = .scaleFill
+        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .right)
+        do {
+            try handler.perform([request])
+        } catch {
+            return DetectionResult(lightColor: .unknown, observedColor: .unknown, boundingBoxes: [])
+        }
+
+        var bestFilteredLightColor: DetectedLightColor = .none
+        var bestFilteredConfidence: Float = 0
+        var bestObservedLightColor: DetectedLightColor = .none
+        var bestObservedConfidence: Float = 0
+        var boxes: [BoundingBox] = []
+
+        for observation in (request.results as? [VNRecognizedObjectObservation]) ?? [] {
+            guard let top = observation.labels.first else { continue }
+            let lightColor = Self.resolveTrafficLightColor(label: top.identifier, box: observation.boundingBox, pixelBuffer: pixelBuffer)
+            boxes.append(BoundingBox(rect: observation.boundingBox, label: top.identifier, confidence: top.confidence))
+
+            if lightColor != .unknown, lightColor != .none, top.confidence > bestObservedConfidence {
+                bestObservedLightColor = lightColor
+                bestObservedConfidence = top.confidence
+            }
+
+            if lightColor != .unknown,
+               lightColor != .none,
+               GeometryFilter.passes(normalizedBox: observation.boundingBox),
+               top.confidence > bestFilteredConfidence {
+                bestFilteredLightColor = lightColor
+                bestFilteredConfidence = top.confidence
+            }
+        }
+
+        return DetectionResult(
+            lightColor: bestFilteredLightColor == .none ? .unknown : bestFilteredLightColor,
+            observedColor: bestObservedLightColor == .none ? .unknown : bestObservedLightColor,
+            boundingBoxes: boxes
+        )
+    }
+
+    private static func resolveTrafficLightColor(
+        label: String,
+        box: CGRect,
+        pixelBuffer: CVPixelBuffer
+    ) -> DetectedLightColor {
+        switch label {
+        case "traffic_light_red":
+            return .red
+        case "traffic_light_green":
+            return .green
+        case "traffic_light_na":
+            return .yellow
+        case "traffic light":
+            if let modelColor = TrafficLightStateClassifier.shared.classify(pixelBuffer: pixelBuffer, boundingBox: box),
+               modelColor != .unknown, modelColor != .none {
+                return modelColor
+            }
+            return ColorHeuristic.analyze(pixelBuffer: pixelBuffer, boundingBox: box)
+        default:
+            return .none
+        }
+    }
+
+    private static func loadVisionModel() -> VNCoreMLModel? {
+        let candidates: [(String, String)] = [
+            ("yolo26nTraffic", "mlmodelc"),
+            ("yolo26nTraffic", "mlpackage"),
+            ("yolo11nTraffic", "mlmodelc"),
+            ("yolo11nTraffic", "mlpackage"),
+            ("yolov8nTraffic", "mlmodelc"),
+            ("yolov8nTraffic", "mlpackage"),
+            ("yolov5sTraffic", "mlmodelc"),
+            ("yolov5sTraffic", "mlmodel"),
+        ]
+
+        for (name, ext) in candidates {
+            guard let modelURL = Bundle.main.url(forResource: name, withExtension: ext) else { continue }
+            let config = MLModelConfiguration()
+            config.computeUnits = .cpuAndGPU
+            guard let mlModel = try? MLModel(contentsOf: modelURL, configuration: config),
+                  let visionModel = try? VNCoreMLModel(for: mlModel) else { continue }
+            return visionModel
+        }
+        return nil
     }
 }

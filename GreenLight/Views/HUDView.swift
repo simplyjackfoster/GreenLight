@@ -1,4 +1,6 @@
 import SwiftUI
+import UIKit
+import AVFoundation
 
 struct CameraView: View {
     @State var viewModel: CameraViewModel
@@ -6,18 +8,14 @@ struct CameraView: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            Color.black.ignoresSafeArea()
+            CameraPreview(session: viewModel.camera.previewSession)
+                .ignoresSafeArea()
 
             VStack {
                 if viewModel.showGreenAlert {
                     Text("Green light detected")
                         .padding(10)
                         .background(Color.green.opacity(0.9))
-                        .clipShape(Capsule())
-                } else if viewModel.showLensSmudgeWarning {
-                    Text("Lens smudge detected")
-                        .padding(10)
-                        .background(Color.orange.opacity(0.9))
                         .clipShape(Capsule())
                 }
                 Spacer()
@@ -53,5 +51,31 @@ struct CameraView: View {
         }
         .sheet(isPresented: $showSettings) { SettingsView(settings: viewModel.settings) }
         .task { viewModel.start() }
+    }
+}
+
+struct CameraPreview: UIViewRepresentable {
+    let session: AVCaptureSession
+
+    func makeUIView(context: Context) -> PreviewView {
+        let view = PreviewView()
+        view.videoPreviewLayer.videoGravity = .resizeAspectFill
+        view.videoPreviewLayer.session = session
+        return view
+    }
+
+    func updateUIView(_ uiView: PreviewView, context: Context) {
+        uiView.videoPreviewLayer.session = session
+    }
+}
+
+final class PreviewView: UIView {
+    override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
+
+    var videoPreviewLayer: AVCaptureVideoPreviewLayer {
+        guard let layer = layer as? AVCaptureVideoPreviewLayer else {
+            return AVCaptureVideoPreviewLayer()
+        }
+        return layer
     }
 }

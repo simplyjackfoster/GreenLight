@@ -9,9 +9,9 @@ final class CameraViewModel {
     var speedUnit: String = "MPH"
     var speedStatus: SpeedStatus = .unknown
     var showGreenAlert: Bool = false
-    var showLensSmudgeWarning: Bool = false
     var boundingBoxes: [BoundingBox] = []
 
+    let camera: any CameraServiceProtocol
     private let detection: any DetectionEngineProtocol
     private let location: any LocationServiceProtocol
     private let audio: any AudioServiceProtocol
@@ -20,8 +20,10 @@ final class CameraViewModel {
 
     private let stateManager = LightStateManager()
     private let fallback = LightTransitionFallbackState()
+    private var didStart = false
 
     init(environment: AppEnvironment) {
+        camera = environment.camera
         detection = environment.detection
         location = environment.location
         audio = environment.audio
@@ -30,7 +32,12 @@ final class CameraViewModel {
     }
 
     func start() {
+        guard !didStart else { return }
+        didStart = true
         Task {
+            await camera.start()
+            await location.start()
+            await audio.setMuted(!settings.isChimeEnabled)
             await withTaskGroup(of: Void.self) { group in
                 group.addTask { await self.consumeDetection() }
                 group.addTask { await self.consumeLocation() }
@@ -40,11 +47,11 @@ final class CameraViewModel {
 
     private func consumeDetection() async {
         for await result in detection.results {
+            await audio.setMuted(!settings.isChimeEnabled)
             let chime = stateManager.update(detectedLight: result.lightColor, speedStatus: speedStatus)
             let fallbackChime = stateManager.isTrackingRedOrTransitioning && fallback.update(filteredLight: result.lightColor, observedLight: result.observedColor, speedStatus: speedStatus)
             lightState = stateManager.displayState
             boundingBoxes = result.boundingBoxes
-            showLensSmudgeWarning = result.lensSmudged
             if chime || fallbackChime {
                 audio.play()
                 triggerGreenAlert()

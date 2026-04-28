@@ -16,5 +16,5 @@ struct Constants {
         static let resourceName = "chime"
     }
 
-    static let urlObjectDetection = URL(string: "https://www.neuralception.com/objectdetection")!
+    static let privacyPolicyURL = URL(string: "https://greenlightapp.carrd.co")!
 }
