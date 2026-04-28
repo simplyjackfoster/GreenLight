@@ -7,20 +7,24 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		6301F9A626A039600001E40E /* WebViewContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6301F9A526A039600001E40E /* WebViewContainer.swift */; };
+		13F9F5D14A020737A43763FB /* LightStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 264D0ABAC538AF70648CFCFC /* LightStateManager.swift */; };
+		1CA7299D5595A197E17EA99E /* TelemetryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66689712488F282F131B9782 /* TelemetryService.swift */; };
+		2F156FFA8EEFF14BB739AE7A /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9810B0E6664402DD72367FF /* LocationService.swift */; };
+		30A2E167153BB4D85EAA567B /* GeometryFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4252591498A7560C49F870E /* GeometryFilter.swift */; };
+		38BF30F9E90BA0D0108DCD86 /* Types.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D10AC02B923C3EC811A90A5 /* Types.swift */; };
+		410311FC3193294D09160618 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37C2F41660167C4FE60C7046 /* AppEnvironment.swift */; };
+		4E0BE5F54D9A3B58374F568E /* CameraService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99AAFF822DF4539C57DE5F9C /* CameraService.swift */; };
 		6301F9A826A039F90001E40E /* WebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6301F9A726A039F90001E40E /* WebView.swift */; };
 		6356002D26EBC86400A641D9 /* yolov5sTraffic.mlmodel in Sources */ = {isa = PBXBuildFile; fileRef = 6356002C26EBC86400A641D9 /* yolov5sTraffic.mlmodel */; };
 		63832B7F269A249000590A9F /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63832B7E269A249000590A9F /* SettingsView.swift */; };
 		63CB353727187C7C0076324B /* GreenLightTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63CB353627187C7C0076324B /* GreenLightTests.swift */; };
 		63CB3CDD26E79E770015FFBD /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63CB3CDC26E79E770015FFBD /* Constants.swift */; };
-		A1B1000126046A1000000001 /* Types.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1000126046A1000000001 /* Types.swift */; };
-		A1B1000226046A1000000001 /* LightStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1000226046A1000000001 /* LightStateManager.swift */; };
-		A1B1000326046A1000000001 /* GeometryFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1000326046A1000000001 /* GeometryFilter.swift */; };
+		93BAB03750264B4CEC31F98A /* DetectionResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C241CDACC9E2686A716BA04 /* DetectionResult.swift */; };
+		9E8857DE361965CF2703647F /* CameraViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08952CCDA6C0C1450694C463 /* CameraViewModel.swift */; };
 		A1B1000426046A1000000001 /* ColorHeuristic.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1000426046A1000000001 /* ColorHeuristic.swift */; };
 		A1B1000526046A1000000001 /* DetectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1000526046A1000000001 /* DetectionState.swift */; };
 		A1B1000626046A1000000001 /* ChimeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1000626046A1000000001 /* ChimeController.swift */; };
 		A1B1000726046A1000000001 /* HUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1000726046A1000000001 /* HUDView.swift */; };
-		A1B1000826046A1000000001 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1000826046A1000000001 /* SceneDelegate.swift */; };
 		A1B1000926046A1000000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A1A1000926046A1000000001 /* PrivacyInfo.xcprivacy */; };
 		A1B1000A26046A1000000001 /* LightStateManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1000A26046A1000000001 /* LightStateManagerTests.swift */; };
 		A1B1000B26046A1000000001 /* GeometryFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1000B26046A1000000001 /* GeometryFilterTests.swift */; };
@@ -28,13 +32,12 @@
 		A1B1000D26046A1000000001 /* chime.aiff in Resources */ = {isa = PBXBuildFile; fileRef = A1A1000D26046A1000000001 /* chime.aiff */; };
 		A1B1000E26046A1000000001 /* yolo26nTraffic.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = A1A1000E26046A1000000001 /* yolo26nTraffic.mlpackage */; };
 		A1B1000F26046A1000000001 /* yolo11nTraffic.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = A1A1000F26046A1000000001 /* yolo11nTraffic.mlpackage */; };
-		A1B1001026046A1000000001 /* TelemetryLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1001026046A1000000001 /* TelemetryLogger.swift */; };
 		A1B1001126046A1000000001 /* TelemetryLoggerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1001126046A1000000001 /* TelemetryLoggerTests.swift */; };
 		A1B1001226046A1000000001 /* TrafficLightStateClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1001226046A1000000001 /* TrafficLightStateClassifier.swift */; };
 		A1B1001326046A1000000001 /* traffic_light_state_classifier.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = A1A1001326046A1000000001 /* traffic_light_state_classifier.mlpackage */; };
-		FAB417F62099308400494E9C /* ViewControllerDetection.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB417F52099308400494E9C /* ViewControllerDetection.swift */; };
+		A4D0864967E007385D435283 /* Protocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = C72DA973E1F0BAB885C4ABCF /* Protocols.swift */; };
+		CC358181F5A2EEF5ED1EFBAF /* DetectionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE74F650EAA2AAD59EA816F /* DetectionEngine.swift */; };
 		FAD5009F1ED668B60074D713 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD5009E1ED668B60074D713 /* AppDelegate.swift */; };
-		FAD500A11ED668B60074D713 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD500A01ED668B60074D713 /* ViewController.swift */; };
 		FAD500A41ED668B60074D713 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FAD500A21ED668B60074D713 /* Main.storyboard */; };
 		FAD500A61ED668B60074D713 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FAD500A51ED668B60074D713 /* Assets.xcassets */; };
 		FAD500A91ED668B60074D713 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FAD500A71ED668B60074D713 /* LaunchScreen.storyboard */; };
@@ -51,6 +54,11 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		08952CCDA6C0C1450694C463 /* CameraViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraViewModel.swift; sourceTree = "<group>"; };
+		264D0ABAC538AF70648CFCFC /* LightStateManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LightStateManager.swift; sourceTree = "<group>"; };
+		2DE74F650EAA2AAD59EA816F /* DetectionEngine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetectionEngine.swift; sourceTree = "<group>"; };
+		37C2F41660167C4FE60C7046 /* AppEnvironment.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
+		5D10AC02B923C3EC811A90A5 /* Types.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Types.swift; sourceTree = "<group>"; };
 		6301F9A526A039600001E40E /* WebViewContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebViewContainer.swift; sourceTree = "<group>"; };
 		6301F9A726A039F90001E40E /* WebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebView.swift; sourceTree = "<group>"; };
 		6356002C26EBC86400A641D9 /* yolov5sTraffic.mlmodel */ = {isa = PBXFileReference; lastKnownFileType = file.mlmodel; path = yolov5sTraffic.mlmodel; sourceTree = "<group>"; };
@@ -58,7 +66,10 @@
 		63CB353427187C7C0076324B /* GreenLightTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GreenLightTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		63CB353627187C7C0076324B /* GreenLightTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GreenLightTests.swift; sourceTree = "<group>"; };
 		63CB3CDC26E79E770015FFBD /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		66689712488F282F131B9782 /* TelemetryService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TelemetryService.swift; sourceTree = "<group>"; };
 		7984D3D3A63BDFC4A07FEF8F /* SampleCode.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = SampleCode.xcconfig; path = Configuration/SampleCode.xcconfig; sourceTree = "<group>"; };
+		99AAFF822DF4539C57DE5F9C /* CameraService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraService.swift; sourceTree = "<group>"; };
+		9C241CDACC9E2686A716BA04 /* DetectionResult.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetectionResult.swift; sourceTree = "<group>"; };
 		A1A1000126046A1000000001 /* Types.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Types.swift; sourceTree = "<group>"; };
 		A1A1000226046A1000000001 /* LightStateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightStateManager.swift; sourceTree = "<group>"; };
 		A1A1000326046A1000000001 /* GeometryFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometryFilter.swift; sourceTree = "<group>"; };
@@ -78,6 +89,9 @@
 		A1A1001126046A1000000001 /* TelemetryLoggerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryLoggerTests.swift; sourceTree = "<group>"; };
 		A1A1001226046A1000000001 /* TrafficLightStateClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficLightStateClassifier.swift; sourceTree = "<group>"; };
 		A1A1001326046A1000000001 /* traffic_light_state_classifier.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper.mlpackage; path = traffic_light_state_classifier.mlpackage; sourceTree = "<group>"; };
+		B9810B0E6664402DD72367FF /* LocationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
+		C4252591498A7560C49F870E /* GeometryFilter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GeometryFilter.swift; sourceTree = "<group>"; };
+		C72DA973E1F0BAB885C4ABCF /* Protocols.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Protocols.swift; sourceTree = "<group>"; };
 		FAB417F52099308400494E9C /* ViewControllerDetection.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ViewControllerDetection.swift; sourceTree = "<group>"; };
 		FAD5009B1ED668B60074D713 /* GreenLight.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GreenLight.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FAD5009E1ED668B60074D713 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -106,6 +120,28 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		2B7A95B5321A789E63ED0888 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				C72DA973E1F0BAB885C4ABCF /* Protocols.swift */,
+				66689712488F282F131B9782 /* TelemetryService.swift */,
+				99AAFF822DF4539C57DE5F9C /* CameraService.swift */,
+				2DE74F650EAA2AAD59EA816F /* DetectionEngine.swift */,
+				B9810B0E6664402DD72367FF /* LocationService.swift */,
+			);
+			name = Services;
+			path = Services;
+			sourceTree = "<group>";
+		};
+		3F675E34D590FA55C72C84F1 /* Camera */ = {
+			isa = PBXGroup;
+			children = (
+				08952CCDA6C0C1450694C463 /* CameraViewModel.swift */,
+			);
+			name = Camera;
+			path = Camera;
+			sourceTree = "<group>";
+		};
 		63131F0E26F5E1FB003E9111 /* ViewControllers */ = {
 			isa = PBXGroup;
 			children = (
@@ -170,14 +206,6 @@
 			path = State;
 			sourceTree = "<group>";
 		};
-		A1C1000626046A1000000001 /* Telemetry */ = {
-			isa = PBXGroup;
-			children = (
-				A1A1001026046A1000000001 /* TelemetryLogger.swift */,
-			);
-			path = Telemetry;
-			sourceTree = "<group>";
-		};
 		A1C1000326046A1000000001 /* Audio */ = {
 			isa = PBXGroup;
 			children = (
@@ -190,6 +218,7 @@
 			isa = PBXGroup;
 			children = (
 				A1A1000826046A1000000001 /* SceneDelegate.swift */,
+				37C2F41660167C4FE60C7046 /* AppEnvironment.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -200,6 +229,23 @@
 				A1A1000D26046A1000000001 /* chime.aiff */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		A1C1000626046A1000000001 /* Telemetry */ = {
+			isa = PBXGroup;
+			children = (
+				A1A1001026046A1000000001 /* TelemetryLogger.swift */,
+			);
+			path = Telemetry;
+			sourceTree = "<group>";
+		};
+		F968C673B4A93C5A0BD1ADC9 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				3F675E34D590FA55C72C84F1 /* Camera */,
+			);
+			name = Features;
+			path = Features;
 			sourceTree = "<group>";
 		};
 		FA86553BE8674B6BE41BAA64 /* Configuration */ = {
@@ -247,8 +293,23 @@
 				FAD500A51ED668B60074D713 /* Assets.xcassets */,
 				FAD500A71ED668B60074D713 /* LaunchScreen.storyboard */,
 				FAD500AA1ED668B60074D713 /* Info.plist */,
+				FBE51A4E2B1C373D2DC77650 /* Domain */,
+				F968C673B4A93C5A0BD1ADC9 /* Features */,
+				2B7A95B5321A789E63ED0888 /* Services */,
 			);
 			path = GreenLight;
+			sourceTree = "<group>";
+		};
+		FBE51A4E2B1C373D2DC77650 /* Domain */ = {
+			isa = PBXGroup;
+			children = (
+				9C241CDACC9E2686A716BA04 /* DetectionResult.swift */,
+				C4252591498A7560C49F870E /* GeometryFilter.swift */,
+				264D0ABAC538AF70648CFCFC /* LightStateManager.swift */,
+				5D10AC02B923C3EC811A90A5 /* Types.swift */,
+			);
+			name = Domain;
+			path = Domain;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -376,22 +437,25 @@
 			files = (
 				A1B1000626046A1000000001 /* ChimeController.swift in Sources */,
 				63832B7F269A249000590A9F /* SettingsView.swift in Sources */,
-				A1B1000826046A1000000001 /* SceneDelegate.swift in Sources */,
 				A1B1000526046A1000000001 /* DetectionState.swift in Sources */,
-				6301F9A626A039600001E40E /* WebViewContainer.swift in Sources */,
-				FAB417F62099308400494E9C /* ViewControllerDetection.swift in Sources */,
-				FAD500A11ED668B60074D713 /* ViewController.swift in Sources */,
-				A1B1000326046A1000000001 /* GeometryFilter.swift in Sources */,
 				A1B1000426046A1000000001 /* ColorHeuristic.swift in Sources */,
 				A1B1001226046A1000000001 /* TrafficLightStateClassifier.swift in Sources */,
 				A1B1000726046A1000000001 /* HUDView.swift in Sources */,
-				A1B1001026046A1000000001 /* TelemetryLogger.swift in Sources */,
 				6356002D26EBC86400A641D9 /* yolov5sTraffic.mlmodel in Sources */,
-				A1B1000126046A1000000001 /* Types.swift in Sources */,
 				FAD5009F1ED668B60074D713 /* AppDelegate.swift in Sources */,
-				A1B1000226046A1000000001 /* LightStateManager.swift in Sources */,
 				6301F9A826A039F90001E40E /* WebView.swift in Sources */,
 				63CB3CDD26E79E770015FFBD /* Constants.swift in Sources */,
+				410311FC3193294D09160618 /* AppEnvironment.swift in Sources */,
+				93BAB03750264B4CEC31F98A /* DetectionResult.swift in Sources */,
+				30A2E167153BB4D85EAA567B /* GeometryFilter.swift in Sources */,
+				13F9F5D14A020737A43763FB /* LightStateManager.swift in Sources */,
+				38BF30F9E90BA0D0108DCD86 /* Types.swift in Sources */,
+				9E8857DE361965CF2703647F /* CameraViewModel.swift in Sources */,
+				A4D0864967E007385D435283 /* Protocols.swift in Sources */,
+				1CA7299D5595A197E17EA99E /* TelemetryService.swift in Sources */,
+				4E0BE5F54D9A3B58374F568E /* CameraService.swift in Sources */,
+				CC358181F5A2EEF5ED1EFBAF /* DetectionEngine.swift in Sources */,
+				2F156FFA8EEFF14BB739AE7A /* LocationService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -534,7 +598,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -592,7 +656,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -611,7 +675,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = JJU38BPJ9P;
 				INFOPLIST_FILE = "$(SRCROOT)/GreenLight/Info.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 14.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -633,7 +697,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = JJU38BPJ9P;
 				INFOPLIST_FILE = "$(SRCROOT)/GreenLight/Info.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 14.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

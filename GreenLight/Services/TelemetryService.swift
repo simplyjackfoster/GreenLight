@@ -28,7 +28,11 @@ actor TelemetryService: TelemetryServiceProtocol {
         pruneOldFiles()
     }
 
-    func log(_ result: DetectionResult, speedStatus: SpeedStatus) {
+    nonisolated func log(_ result: DetectionResult, speedStatus: SpeedStatus) {
+        Task { await _log(result, speedStatus: speedStatus) }
+    }
+
+    private func _log(_ result: DetectionResult, speedStatus: SpeedStatus) {
         let event = TelemetryEvent(result: result, speedStatus: speedStatus)
         guard let data = try? encoder.encode(event),
               let line = String(data: data, encoding: .utf8) else { return }

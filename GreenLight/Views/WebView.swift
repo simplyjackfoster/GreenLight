@@ -1,46 +1,14 @@
-//
-//  WebView.swift
-//  GreenLight
-//
-
-//
-
-
 import SwiftUI
+import WebKit
 
+struct DetectionWebView: UIViewRepresentable {
+    let url: URL
 
-struct WebView: View {
-    @ObservedObject var webViewModel = WebViewModel(url: Constants.urlObjectDetection)
+    func makeUIView(context: Context) -> WKWebView {
+        WKWebView()
+    }
 
-        var body: some View {
-                ZStack {
-                    WebViewContainer(webViewModel: webViewModel)
-                    if webViewModel.isLoading {
-                        //Spinner()
-                        //    .frame(height: 30)
-                        Text("Loading...")
-                    }
-                }
-                .ignoresSafeArea()
-                .navigationBarTitle(Text(webViewModel.title), displayMode: .inline)
-                .navigationBarItems(leading: Button(action: {
-                    webViewModel.shouldGoBack.toggle()
-                }, label: {
-                    if webViewModel.canGoBack {
-                        Image(systemName: "arrow.left")
-                            .frame(width: 44, height: 44, alignment: .center)
-                            .foregroundColor(.black)
-                    } else {
-                        EmptyView()
-                            .frame(width: 0, height: 0, alignment: .center)
-                    }
-                })
-                )
-        }
-}
-
-struct WebView_Previews: PreviewProvider {
-    static var previews: some View {
-        WebView()
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        webView.load(URLRequest(url: url))
     }
 }
