@@ -17,7 +17,7 @@ GreenLight runs a real-time traffic-light detection and state classification pip
 5. Runs confidence fusion, temporal state machine, and a pre-chime validation burst
 6. Chimes only when all gates pass and the vehicle is stopped (< 2 mph)
 
-See `ARCHITECTURE.md` for the full system design.
+See `docs/ARCHITECTURE.md` for the full system design.
 
 ---
 
@@ -64,11 +64,11 @@ The app loads models in priority order: `yolo26nTraffic` â†’ `yolo11nTraffic` â†
 ### Train the state classifier
 
 ```bash
-python dataset_pipeline.py --lisa-root export/datasets/raw/lisa \
-                            --s2tld-root export/datasets/raw/s2tld \
-                            --bstld-root export/datasets/raw/bstld
-python train.py
-python export_coreml.py
+python ml/dataset_pipeline.py --lisa-root export/datasets/raw/lisa \
+                               --s2tld-root export/datasets/raw/s2tld \
+                               --bstld-root export/datasets/raw/bstld
+python ml/train.py
+python ml/export_coreml.py
 ```
 
 See `docs/data-pipeline.md` for the full reproducible workflow.
