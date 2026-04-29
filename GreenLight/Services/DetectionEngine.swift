@@ -86,12 +86,17 @@ actor DetectionEngine: DetectionEngineProtocol {
         box: CGRect,
         pixelBuffer: CVPixelBuffer
     ) -> DetectedLightColor {
-        switch label {
-        case "traffic_light_red":
+        let normalized = label
+            .lowercased()
+            .replacingOccurrences(of: "_", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        switch normalized {
+        case "traffic light red":
             return .red
-        case "traffic_light_green":
+        case "traffic light green":
             return .green
-        case "traffic_light_na":
+        case "traffic light na", "traffic light yellow", "traffic light amber":
             return .yellow
         case "traffic light":
             if let modelColor = TrafficLightStateClassifier.shared.classify(pixelBuffer: pixelBuffer, boundingBox: box),
@@ -100,6 +105,16 @@ actor DetectionEngine: DetectionEngineProtocol {
             }
             return ColorHeuristic.analyze(pixelBuffer: pixelBuffer, boundingBox: box)
         default:
+            if normalized.contains("traffic"), normalized.contains("light") {
+                if normalized.contains("red") { return .red }
+                if normalized.contains("green") { return .green }
+                if normalized.contains("yellow") || normalized.contains("amber") { return .yellow }
+                if let modelColor = TrafficLightStateClassifier.shared.classify(pixelBuffer: pixelBuffer, boundingBox: box),
+                   modelColor != .unknown, modelColor != .none {
+                    return modelColor
+                }
+                return ColorHeuristic.analyze(pixelBuffer: pixelBuffer, boundingBox: box)
+            }
             return .none
         }
     }

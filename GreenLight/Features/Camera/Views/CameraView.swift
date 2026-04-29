@@ -11,6 +11,27 @@ struct CameraView: View {
             CameraPreview(session: viewModel.camera.previewSession)
                 .ignoresSafeArea()
 
+            if viewModel.settings.showBoundingBoxes {
+                GeometryReader { proxy in
+                    ForEach(Array(viewModel.boundingBoxes.enumerated()), id: \.offset) { _, box in
+                        let rect = denormalize(box.rect, in: proxy.size)
+                        ZStack(alignment: .topLeading) {
+                            Rectangle()
+                                .stroke(Color.green, lineWidth: 2)
+                            Text("\(box.label) \(Int(box.confidence * 100))%")
+                                .font(.caption2)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 2)
+                                .background(Color.black.opacity(0.6))
+                                .foregroundStyle(.white)
+                        }
+                        .frame(width: rect.width, height: rect.height)
+                        .position(x: rect.midX, y: rect.midY)
+                    }
+                }
+                .allowsHitTesting(false)
+            }
+
             VStack {
                 if viewModel.showGreenAlert {
                     Text("Green light detected")
@@ -51,6 +72,14 @@ struct CameraView: View {
         }
         .sheet(isPresented: $showSettings) { SettingsView(settings: viewModel.settings) }
         .task { viewModel.start() }
+    }
+
+    private func denormalize(_ rect: CGRect, in size: CGSize) -> CGRect {
+        let x = rect.minX * size.width
+        let y = (1.0 - rect.maxY) * size.height
+        let width = rect.width * size.width
+        let height = rect.height * size.height
+        return CGRect(x: x, y: y, width: width, height: height)
     }
 }
 
