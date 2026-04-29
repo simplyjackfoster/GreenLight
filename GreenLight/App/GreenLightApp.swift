@@ -2,11 +2,11 @@ import SwiftUI
 
 @main
 struct GreenLightApp: App {
-    @State private var environment = AppEnvironment.live
+    @State private var dependencies = AppDependencyContainer.live
 
     var body: some Scene {
         WindowGroup {
-            CameraView(viewModel: CameraViewModel(environment: environment))
+            CameraView(viewModel: CameraViewModel(dependencies: dependencies))
         }
     }
 }

@@ -16,19 +16,19 @@ final class CameraViewModel {
     private let location: any LocationServiceProtocol
     private let audio: any AudioServiceProtocol
     private let telemetry: any TelemetryServiceProtocol
-    let settings: SettingsStore
+    let settings: SettingsState
 
     private let stateManager = LightStateManager()
     private let fallback = LightTransitionFallbackState()
     private var didStart = false
 
-    init(environment: AppEnvironment) {
-        camera = environment.camera
-        detection = environment.detection
-        location = environment.location
-        audio = environment.audio
-        telemetry = environment.telemetry
-        settings = environment.settings
+    init(dependencies: AppDependencyContainer) {
+        camera = dependencies.camera
+        detection = dependencies.detection
+        location = dependencies.location
+        audio = dependencies.audio
+        telemetry = dependencies.telemetry
+        settings = dependencies.settings
     }
 
     func start() {

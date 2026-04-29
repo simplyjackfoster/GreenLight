@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
-    @Bindable var settings: SettingsStore
+    @Bindable var settings: SettingsState
 
     var body: some View {
         NavigationStack {
