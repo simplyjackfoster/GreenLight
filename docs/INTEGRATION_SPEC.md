@@ -1,5 +1,8 @@
 # Integration Spec: iOS + CarPlay Traffic-Light Green Chime
 
+> Status note (April 2026): This is a target integration spec and includes roadmap items.  
+> The shipped iOS code path currently uses `LightStateManager` + `LightTransitionFallbackState` and does not yet include full CarPlay scene/delegate wiring or the full selector/fusion/validator stack described below.
+
 ## 1) `.mlpackage` Integration into Xcode
 - Place exported classifier package in app repo, e.g. `GreenLight/Models/traffic_light_state_classifier.mlpackage`.
 - Add to Xcode target and verify it is copied in build phases.
