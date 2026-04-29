@@ -1,5 +1,9 @@
 # Architecture: Green-Light Chime System
 
+> Status note (April 2026): This document contains both implemented behavior and target architecture.  
+> The current app implementation is in `GreenLight/Features`, `GreenLight/Domain`, and `GreenLight/Services`.  
+> Items such as `PrimaryLightSelector`, `ConfidenceFusionEngine`, `PreChimeValidator`, and full CarPlay integration are design targets, not fully implemented in the current iOS runtime code.
+
 ## Goal
 Build a best-in-class iPhone + CarPlay traffic-light state change detector that reliably chimes on the driver's light turning green while keeping false positives extremely low.
 

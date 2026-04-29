@@ -11,10 +11,16 @@ This document defines the reproducible path from dataset generation to app model
 Install required Python packages:
 
 ```bash
+pip install -r ml/requirements.txt
+```
+
+Optional helper:
+
+```bash
 make py-deps
 ```
 
-This creates a local virtual environment at `.venv-dataset/` and installs the required tooling there.
+This helper creates a local virtual environment at `.venv-dataset/` and installs a minimal subset of dependencies for dataset smoke tooling.
 
 ## Stable artifact locations
 
@@ -95,6 +101,10 @@ Then in Xcode:
 1. Open `GreenLight.xcodeproj`
 2. Confirm model is part of app target and in Copy Bundle Resources
 3. If model filename changed, update lookup in:
-   - `GreenLight/ViewControllers/ViewControllerDetection.swift`
+   - `GreenLight/Services/DetectionEngine.swift`
 
-Current lookup expects `yolov5sTraffic.mlmodelc`.
+Current runtime lookup order is:
+- `yolo26nTraffic` (`.mlmodelc` / `.mlpackage`)
+- `yolo11nTraffic` (`.mlmodelc` / `.mlpackage`)
+- `yolov8nTraffic` (`.mlmodelc` / `.mlpackage`)
+- `yolov5sTraffic` (`.mlmodelc` / `.mlmodel`)
