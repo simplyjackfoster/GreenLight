@@ -1,34 +1,36 @@
-import AVFoundation
+@preconcurrency import AVFoundation
 import CoreMedia
-import CoreVideo
+@preconcurrency import CoreVideo
 
 actor CameraService: CameraServiceProtocol {
 
     // nonisolated let so CameraPreview can access it without actor hop
     nonisolated let previewSession: AVCaptureSession = AVCaptureSession()
 
-    let frames: AsyncStream<CVPixelBuffer>
-    private let framesContinuation: AsyncStream<CVPixelBuffer>.Continuation
+    let frames: AsyncStream<CameraFrame>
+    private let framesContinuation: AsyncStream<CameraFrame>.Continuation
     private let queue = DispatchQueue(label: "com.greenlight.camera", qos: .userInitiated)
     private var bridge: CameraOutputBridge?
 
     init() {
-        var cont: AsyncStream<CVPixelBuffer>.Continuation!
+        var cont: AsyncStream<CameraFrame>.Continuation!
         frames = AsyncStream(bufferingPolicy: .bufferingNewest(1)) { cont = $0 }
         framesContinuation = cont
     }
 
     func start() async {
         await configure()
-        queue.async { [previewSession] in
-            guard !previewSession.isRunning else { return }
-            previewSession.startRunning()
+        queue.async { [weak self] in
+            guard let self else { return }
+            guard !self.previewSession.isRunning else { return }
+            self.previewSession.startRunning()
         }
     }
 
     func stop() async {
-        queue.async { [previewSession] in
-            previewSession.stopRunning()
+        queue.async { [weak self] in
+            guard let self else { return }
+            self.previewSession.stopRunning()
         }
     }
 
@@ -68,9 +70,9 @@ actor CameraService: CameraServiceProtocol {
 }
 
 private final class CameraOutputBridge: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, @unchecked Sendable {
-    private let continuation: AsyncStream<CVPixelBuffer>.Continuation
+    private let continuation: AsyncStream<CameraFrame>.Continuation
 
-    init(continuation: AsyncStream<CVPixelBuffer>.Continuation) {
+    init(continuation: AsyncStream<CameraFrame>.Continuation) {
         self.continuation = continuation
     }
 
@@ -80,6 +82,6 @@ private final class CameraOutputBridge: NSObject, AVCaptureVideoDataOutputSample
         from connection: AVCaptureConnection
     ) {
         guard let buffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-        continuation.yield(buffer)
+        continuation.yield(CameraFrame(pixelBuffer: buffer))
     }
 }

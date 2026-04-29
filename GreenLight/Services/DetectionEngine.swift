@@ -1,5 +1,5 @@
 import CoreML
-import CoreVideo
+@preconcurrency import CoreVideo
 import Foundation
 import Vision
 
@@ -8,23 +8,29 @@ actor DetectionEngine: DetectionEngineProtocol {
     let results: AsyncStream<DetectionResult>
     private let resultsContinuation: AsyncStream<DetectionResult>.Continuation
     private var consumeTask: Task<Void, Never>?
-    private var model: VNCoreMLModel?
+    private var request: VNCoreMLRequest?
 
     init() {
         var cont: AsyncStream<DetectionResult>.Continuation!
         results = AsyncStream(bufferingPolicy: .bufferingNewest(1)) { cont = $0 }
         resultsContinuation = cont
-        model = Self.loadVisionModel()
+        if let model = Self.loadVisionModel() {
+            request = Self.makeRequest(model: model)
+        } else {
+            request = nil
+        }
     }
 
     func attach(camera: any CameraServiceProtocol) async {
         consumeTask?.cancel()
-        let model = self.model
+        let request = self.request
+        let frames = await camera.frames
         consumeTask = Task { [weak self] in
             guard let self else { return }
-            for await pixelBuffer in camera.frames {
+            for await frame in frames {
                 if Task.isCancelled { break }
-                let result = Self.runInference(on: pixelBuffer, model: model)
+                let pixelBuffer = frame.pixelBuffer
+                let result = Self.runInference(on: pixelBuffer, request: request)
                 await self.emit(result)
             }
         }
@@ -34,12 +40,16 @@ actor DetectionEngine: DetectionEngineProtocol {
         resultsContinuation.yield(result)
     }
 
-    private static func runInference(on pixelBuffer: CVPixelBuffer, model: VNCoreMLModel?) -> DetectionResult {
-        guard let model else {
-            return DetectionResult(lightColor: .unknown, observedColor: .unknown, boundingBoxes: [])
-        }
+    private static func makeRequest(model: VNCoreMLModel) -> VNCoreMLRequest {
         let request = VNCoreMLRequest(model: model)
         request.imageCropAndScaleOption = .scaleFill
+        return request
+    }
+
+    private static func runInference(on pixelBuffer: CVPixelBuffer, request: VNCoreMLRequest?) -> DetectionResult {
+        guard let request else {
+            return DetectionResult(lightColor: .unknown, observedColor: .unknown, boundingBoxes: [])
+        }
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .right)
         do {
             try handler.perform([request])
@@ -102,6 +112,24 @@ actor DetectionEngine: DetectionEngineProtocol {
         }
     }
 
+    private static let experimentalGPUDefaultsKey = "mlExperimentalEnableGPU"
+
+    private static func preferredComputeUnits() -> [MLComputeUnits] {
+        let defaults = UserDefaults.standard
+        let enableExperimentalGPU = defaults.bool(forKey: experimentalGPUDefaultsKey)
+        var units: [MLComputeUnits] = [.cpuAndNeuralEngine, .cpuOnly]
+        if enableExperimentalGPU {
+            // Experimental path: may trigger MPSGraph GPU compiler crashes for some models/devices.
+            units.insert(.cpuAndGPU, at: 0)
+            units.insert(.all, at: 0)
+        }
+        var unique: [MLComputeUnits] = []
+        for unit in units where !unique.contains(unit) {
+            unique.append(unit)
+        }
+        return unique
+    }
+
     private static func loadVisionModel() -> VNCoreMLModel? {
         let candidates: [(String, String)] = [
             ("yolo26nTraffic", "mlmodelc"),
@@ -113,14 +141,17 @@ actor DetectionEngine: DetectionEngineProtocol {
             ("yolov5sTraffic", "mlmodelc"),
             ("yolov5sTraffic", "mlmodel"),
         ]
+        let computeUnitsOrder = preferredComputeUnits()
 
         for (name, ext) in candidates {
             guard let modelURL = Bundle.main.url(forResource: name, withExtension: ext) else { continue }
-            let config = MLModelConfiguration()
-            config.computeUnits = .cpuAndGPU
-            guard let mlModel = try? MLModel(contentsOf: modelURL, configuration: config),
-                  let visionModel = try? VNCoreMLModel(for: mlModel) else { continue }
-            return visionModel
+            for computeUnits in computeUnitsOrder {
+                let config = MLModelConfiguration()
+                config.computeUnits = computeUnits
+                guard let mlModel = try? MLModel(contentsOf: modelURL, configuration: config),
+                      let visionModel = try? VNCoreMLModel(for: mlModel) else { continue }
+                return visionModel
+            }
         }
         return nil
     }

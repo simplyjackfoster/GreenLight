@@ -8,22 +8,46 @@ final class TrafficLightStateClassifier {
     private let model: MLModel?
     private let inputWidth = 64
     private let inputHeight = 64
+    private static let experimentalGPUDefaultsKey = "mlExperimentalEnableGPU"
 
     private init() {
-        let configuration = MLModelConfiguration()
-        configuration.computeUnits = .cpuAndGPU
-
         if let compiledURL = Bundle.main.url(forResource: "traffic_light_state_classifier", withExtension: "mlmodelc") {
-            model = try? MLModel(contentsOf: compiledURL, configuration: configuration)
+            model = Self.loadModel(from: compiledURL)
             return
         }
 
         if let packageURL = Bundle.main.url(forResource: "traffic_light_state_classifier", withExtension: "mlpackage") {
-            model = try? MLModel(contentsOf: packageURL, configuration: configuration)
+            model = Self.loadModel(from: packageURL)
             return
         }
 
         model = nil
+    }
+
+    private static func preferredComputeUnits() -> [MLComputeUnits] {
+        let defaults = UserDefaults.standard
+        let enableExperimentalGPU = defaults.bool(forKey: experimentalGPUDefaultsKey)
+        var units: [MLComputeUnits] = [.cpuAndNeuralEngine, .cpuOnly]
+        if enableExperimentalGPU {
+            units.insert(.cpuAndGPU, at: 0)
+            units.insert(.all, at: 0)
+        }
+        var unique: [MLComputeUnits] = []
+        for unit in units where !unique.contains(unit) {
+            unique.append(unit)
+        }
+        return unique
+    }
+
+    private static func loadModel(from url: URL) -> MLModel? {
+        for computeUnits in preferredComputeUnits() {
+            let configuration = MLModelConfiguration()
+            configuration.computeUnits = computeUnits
+            if let model = try? MLModel(contentsOf: url, configuration: configuration) {
+                return model
+            }
+        }
+        return nil
     }
 
     func classify(pixelBuffer: CVPixelBuffer, boundingBox: CGRect) -> DetectedLightColor? {

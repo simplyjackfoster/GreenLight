@@ -23,7 +23,7 @@ actor TelemetryService: TelemetryServiceProtocol {
     private var currentFileDate = ""
 
     init() {
-        pruneOldFiles()
+        Self.pruneOldFiles(retentionDays: retentionDays)
     }
 
     nonisolated func log(_ result: DetectionResult, speedStatus: SpeedStatus) {
@@ -51,7 +51,7 @@ actor TelemetryService: TelemetryServiceProtocol {
     }
 
     private func openHandle(for dateString: String) -> FileHandle? {
-        guard let dir = telemetryDirectory() else { return nil }
+        guard let dir = Self.telemetryDirectory() else { return nil }
         let url = dir.appendingPathComponent("\(dateString).jsonl")
         if !FileManager.default.fileExists(atPath: url.path) {
             FileManager.default.createFile(atPath: url.path, contents: nil)
@@ -59,7 +59,7 @@ actor TelemetryService: TelemetryServiceProtocol {
         return try? FileHandle(forWritingTo: url)
     }
 
-    private func pruneOldFiles() {
+    private static func pruneOldFiles(retentionDays: Int) {
         guard let dir = telemetryDirectory(),
               let files = try? FileManager.default.contentsOfDirectory(
                 at: dir,
@@ -74,7 +74,7 @@ actor TelemetryService: TelemetryServiceProtocol {
         }
     }
 
-    private func telemetryDirectory() -> URL? {
+    private static func telemetryDirectory() -> URL? {
         guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
             return nil
         }
