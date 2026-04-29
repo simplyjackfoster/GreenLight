@@ -90,12 +90,12 @@ final class CameraViewModelTests: XCTestCase {
 
 final class FakeCameraService: CameraServiceProtocol, @unchecked Sendable {
     let previewSession = AVCaptureSession()
-    let frames: AsyncStream<CVPixelBuffer>
-    private let framesContinuation: AsyncStream<CVPixelBuffer>.Continuation
+    let frames: AsyncStream<CameraFrame>
+    private let framesContinuation: AsyncStream<CameraFrame>.Continuation
     private(set) var startCallCount = 0
 
     init() {
-        var cont: AsyncStream<CVPixelBuffer>.Continuation!
+        var cont: AsyncStream<CameraFrame>.Continuation!
         frames = AsyncStream { cont = $0 }
         framesContinuation = cont
     }
