@@ -27,10 +27,11 @@ final class TrafficLightStateClassifier {
     private static func preferredComputeUnits() -> [MLComputeUnits] {
         let defaults = UserDefaults.standard
         let enableExperimentalGPU = defaults.bool(forKey: experimentalGPUDefaultsKey)
-        var units: [MLComputeUnits] = [.cpuAndNeuralEngine, .cpuOnly]
+        // CPU-first avoids unstable backend behavior on some devices/models.
+        var units: [MLComputeUnits] = [.cpuOnly, .cpuAndNeuralEngine]
         if enableExperimentalGPU {
-            units.insert(.cpuAndGPU, at: 0)
-            units.insert(.all, at: 0)
+            units.append(.cpuAndGPU)
+            units.append(.all)
         }
         var unique: [MLComputeUnits] = []
         for unit in units where !unique.contains(unit) {

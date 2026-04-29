@@ -13,20 +13,29 @@ struct CameraView: View {
 
             if viewModel.settings.showBoundingBoxes {
                 GeometryReader { proxy in
-                    ForEach(Array(viewModel.boundingBoxes.enumerated()), id: \.offset) { _, box in
-                        let rect = denormalize(box.rect, in: proxy.size)
-                        ZStack(alignment: .topLeading) {
+                    ZStack(alignment: .topLeading) {
+                        ForEach(Array(viewModel.boundingBoxes.enumerated()), id: \.offset) { _, box in
+                            let rect = denormalize(box.rect, in: proxy.size)
                             Rectangle()
                                 .stroke(Color.green, lineWidth: 2)
-                            Text("\(box.label) \(Int(box.confidence * 100))%")
-                                .font(.caption2)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 2)
-                                .background(Color.black.opacity(0.6))
-                                .foregroundStyle(.white)
+                                .frame(width: max(2, rect.width), height: max(2, rect.height))
+                                .position(x: rect.midX, y: rect.midY)
+
+                            if viewModel.settings.showLabels {
+                                Text(labelText(for: box))
+                                    .font(.caption2.weight(.semibold))
+                                    .lineLimit(1)
+                                    .fixedSize(horizontal: true, vertical: true)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 3)
+                                    .background(Color.black.opacity(0.75), in: Capsule())
+                                    .foregroundStyle(.white)
+                                    .offset(
+                                        x: labelX(for: rect, in: proxy.size),
+                                        y: labelY(for: rect, in: proxy.size)
+                                    )
+                            }
                         }
-                        .frame(width: rect.width, height: rect.height)
-                        .position(x: rect.midX, y: rect.midY)
                     }
                 }
                 .allowsHitTesting(false)
@@ -47,17 +56,16 @@ struct CameraView: View {
                 VStack {
                     HStack {
                         Spacer()
-                        VStack(alignment: .trailing) {
-                            Text("\(Int(viewModel.speed))").font(.largeTitle)
-                            Text(viewModel.speedUnit)
-                        }
-                        .padding(10)
-                        .background(.ultraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        SpeedPanel(
+                            speed: viewModel.speed,
+                            speedUnit: viewModel.speedUnit,
+                            speedStatus: viewModel.speedStatus
+                        )
                     }
                     Spacer()
                 }
-                .padding()
+                .padding(.horizontal)
+                .padding(.top, 12)
             }
 
             Button {
@@ -80,6 +88,99 @@ struct CameraView: View {
         let width = rect.width * size.width
         let height = rect.height * size.height
         return CGRect(x: x, y: y, width: width, height: height)
+    }
+
+    private func labelText(for box: BoundingBox) -> String {
+        let normalized = box.label
+            .lowercased()
+            .replacingOccurrences(of: "_", with: " ")
+
+        let shortLabel: String
+        if normalized.contains("red") {
+            shortLabel = "Red"
+        } else if normalized.contains("green") {
+            shortLabel = "Green"
+        } else if normalized.contains("yellow") || normalized.contains("amber") || normalized.contains(" na") {
+            shortLabel = "Yellow"
+        } else if normalized.contains("traffic"), normalized.contains("light") {
+            shortLabel = "Traffic light"
+        } else {
+            shortLabel = box.label
+        }
+
+        return "\(shortLabel) \(Int(box.confidence * 100))%"
+    }
+
+    private func labelX(for rect: CGRect, in size: CGSize) -> CGFloat {
+        let estimatedLabelWidth: CGFloat = 150
+        return min(max(0, rect.minX), max(0, size.width - estimatedLabelWidth))
+    }
+
+    private func labelY(for rect: CGRect, in size: CGSize) -> CGFloat {
+        let labelHeight: CGFloat = 22
+        let above = rect.minY - labelHeight
+        if above >= 0 {
+            return above
+        }
+        return min(rect.maxY + 6, max(0, size.height - labelHeight))
+    }
+}
+
+private struct SpeedPanel: View {
+    let speed: Double
+    let speedUnit: String
+    let speedStatus: SpeedStatus
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("\(Int(speed))")
+                    .font(.system(size: 44, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                Text(speedUnit.uppercased())
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(statusText)
+                .font(.caption2.weight(.semibold))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(statusTint.opacity(0.2), in: Capsule())
+                .foregroundStyle(statusTint)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(.ultraThinMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(.white.opacity(0.25), lineWidth: 1)
+        )
+    }
+
+    private var statusText: String {
+        switch speedStatus {
+        case .knownStationary:
+            return "Stopped"
+        case .knownMoving:
+            return "Moving"
+        case .unknown:
+            return "Speed Unknown"
+        }
+    }
+
+    private var statusTint: Color {
+        switch speedStatus {
+        case .knownStationary:
+            return .green
+        case .knownMoving:
+            return .orange
+        case .unknown:
+            return .gray
+        }
     }
 }
 

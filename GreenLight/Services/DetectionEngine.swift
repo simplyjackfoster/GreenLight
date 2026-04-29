@@ -136,11 +136,13 @@ actor DetectionEngine: DetectionEngineProtocol {
     private static func preferredComputeUnits() -> [MLComputeUnits] {
         let defaults = UserDefaults.standard
         let enableExperimentalGPU = defaults.bool(forKey: experimentalGPUDefaultsKey)
-        var units: [MLComputeUnits] = [.cpuAndNeuralEngine, .cpuOnly]
+        // Use CPU-only first for runtime stability. Some bundled YOLO variants emit
+        // invalid-kernel warnings on the ANE path and can degrade live behavior.
+        var units: [MLComputeUnits] = [.cpuOnly, .cpuAndNeuralEngine]
         if enableExperimentalGPU {
-            // Experimental path: may trigger MPSGraph GPU compiler crashes for some models/devices.
-            units.insert(.cpuAndGPU, at: 0)
-            units.insert(.all, at: 0)
+            // Experimental path: may trigger MPSGraph compiler crashes for some models/devices.
+            units.append(.cpuAndGPU)
+            units.append(.all)
         }
         var unique: [MLComputeUnits] = []
         for unit in units where !unique.contains(unit) {
@@ -151,14 +153,16 @@ actor DetectionEngine: DetectionEngineProtocol {
 
     private static func loadVisionModel() -> VNCoreMLModel? {
         let candidates: [(String, String)] = [
-            ("yolo26nTraffic", "mlmodelc"),
-            ("yolo26nTraffic", "mlpackage"),
-            ("yolo11nTraffic", "mlmodelc"),
-            ("yolo11nTraffic", "mlpackage"),
-            ("yolov8nTraffic", "mlmodelc"),
-            ("yolov8nTraffic", "mlpackage"),
+            // Prefer models with traffic-light color classes first to preserve
+            // red->green transition accuracy.
             ("yolov5sTraffic", "mlmodelc"),
             ("yolov5sTraffic", "mlmodel"),
+            ("yolo11nTraffic", "mlmodelc"),
+            ("yolo11nTraffic", "mlpackage"),
+            ("yolo26nTraffic", "mlmodelc"),
+            ("yolo26nTraffic", "mlpackage"),
+            ("yolov8nTraffic", "mlmodelc"),
+            ("yolov8nTraffic", "mlpackage"),
         ]
         let computeUnitsOrder = preferredComputeUnits()
 
