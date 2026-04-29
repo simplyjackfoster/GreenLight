@@ -8,29 +8,25 @@ actor DetectionEngine: DetectionEngineProtocol {
     let results: AsyncStream<DetectionResult>
     private let resultsContinuation: AsyncStream<DetectionResult>.Continuation
     private var consumeTask: Task<Void, Never>?
-    private var request: VNCoreMLRequest?
+    private var model: VNCoreMLModel?
 
     init() {
         var cont: AsyncStream<DetectionResult>.Continuation!
         results = AsyncStream(bufferingPolicy: .bufferingNewest(1)) { cont = $0 }
         resultsContinuation = cont
-        if let model = Self.loadVisionModel() {
-            request = Self.makeRequest(model: model)
-        } else {
-            request = nil
-        }
+        model = Self.loadVisionModel()
     }
 
     func attach(camera: any CameraServiceProtocol) async {
         consumeTask?.cancel()
-        let request = self.request
+        let model = self.model
         let frames = await camera.frames
         consumeTask = Task { [weak self] in
             guard let self else { return }
             for await frame in frames {
                 if Task.isCancelled { break }
                 let pixelBuffer = frame.pixelBuffer
-                let result = Self.runInference(on: pixelBuffer, request: request)
+                let result = Self.runInference(on: pixelBuffer, model: model)
                 await self.emit(result)
             }
         }
@@ -40,16 +36,12 @@ actor DetectionEngine: DetectionEngineProtocol {
         resultsContinuation.yield(result)
     }
 
-    private static func makeRequest(model: VNCoreMLModel) -> VNCoreMLRequest {
-        let request = VNCoreMLRequest(model: model)
-        request.imageCropAndScaleOption = .scaleFill
-        return request
-    }
-
-    private static func runInference(on pixelBuffer: CVPixelBuffer, request: VNCoreMLRequest?) -> DetectionResult {
-        guard let request else {
+    private static func runInference(on pixelBuffer: CVPixelBuffer, model: VNCoreMLModel?) -> DetectionResult {
+        guard let model else {
             return DetectionResult(lightColor: .unknown, observedColor: .unknown, boundingBoxes: [])
         }
+        let request = VNCoreMLRequest(model: model)
+        request.imageCropAndScaleOption = .scaleFill
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .right)
         do {
             try handler.perform([request])
