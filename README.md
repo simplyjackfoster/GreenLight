@@ -21,6 +21,24 @@ See `docs/ARCHITECTURE.md` for the full system design.
 
 ---
 
+## App architecture
+
+The app uses a feature-first, SwiftUI-native structure with composition-root dependency injection:
+
+- `Features/*`: user-facing screens and view models (MVVM)
+- `Core/*`: app wiring and protocol interfaces
+- `Domain/*`: pure business rules and state logic
+- `Data/*`: persistence and repositories
+- `Services/*`: platform/API adapters (camera, location, audio, telemetry, detection)
+
+Guidelines used in this repo:
+- Keep business rules out of SwiftUI `View`s
+- Keep Apple platform APIs behind protocols for testability
+- Keep dependency creation in the composition root (`AppDependencyContainer`)
+- Prefer async/await, Observation, and small testable units
+
+---
+
 ## Requirements
 
 - Xcode 15+
