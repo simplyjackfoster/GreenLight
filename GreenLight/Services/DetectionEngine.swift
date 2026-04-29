@@ -10,6 +10,11 @@ actor DetectionEngine: DetectionEngineProtocol {
     private var consumeTask: Task<Void, Never>?
     private var model: VNCoreMLModel?
     private static let inferenceMinIntervalSeconds = 0.10
+    private enum DetectorSupport: Int {
+        case unsupported = 0
+        case genericTraffic = 1
+        case colorSpecificTraffic = 2
+    }
 
     init() {
         var cont: AsyncStream<DetectionResult>.Continuation!
@@ -63,21 +68,21 @@ actor DetectionEngine: DetectionEngineProtocol {
         var boxes: [BoundingBox] = []
 
         for observation in (request.results as? [VNRecognizedObjectObservation]) ?? [] {
-            guard let top = observation.labels.first else { continue }
-            let lightColor = Self.resolveTrafficLightColor(label: top.identifier, box: observation.boundingBox, pixelBuffer: pixelBuffer)
-            boxes.append(BoundingBox(rect: observation.boundingBox, label: top.identifier, confidence: top.confidence))
+            guard let trafficLabel = Self.preferredTrafficLightLabel(from: observation.labels) else { continue }
+            let lightColor = Self.resolveTrafficLightColor(label: trafficLabel.identifier, box: observation.boundingBox, pixelBuffer: pixelBuffer)
+            boxes.append(BoundingBox(rect: observation.boundingBox, label: trafficLabel.identifier, confidence: trafficLabel.confidence))
 
-            if lightColor != .unknown, lightColor != .none, top.confidence > bestObservedConfidence {
+            if lightColor != .unknown, lightColor != .none, trafficLabel.confidence > bestObservedConfidence {
                 bestObservedLightColor = lightColor
-                bestObservedConfidence = top.confidence
+                bestObservedConfidence = trafficLabel.confidence
             }
 
             if lightColor != .unknown,
                lightColor != .none,
                GeometryFilter.passes(normalizedBox: observation.boundingBox),
-               top.confidence > bestFilteredConfidence {
+               trafficLabel.confidence > bestFilteredConfidence {
                 bestFilteredLightColor = lightColor
-                bestFilteredConfidence = top.confidence
+                bestFilteredConfidence = trafficLabel.confidence
             }
         }
 
@@ -157,29 +162,55 @@ actor DetectionEngine: DetectionEngineProtocol {
         ]
         let computeUnitsOrder = preferredComputeUnits()
 
+        var best: (score: DetectorSupport, model: VNCoreMLModel)?
         for (name, ext) in candidates {
             guard let modelURL = Bundle.main.url(forResource: name, withExtension: ext) else { continue }
             for computeUnits in computeUnitsOrder {
                 let config = MLModelConfiguration()
                 config.computeUnits = computeUnits
                 guard let mlModel = try? MLModel(contentsOf: modelURL, configuration: config) else { continue }
-                guard isSupportedDetectorModel(mlModel) else { continue }
+                let support = detectorSupport(for: mlModel)
+                guard support != .unsupported else { continue }
                 guard let visionModel = try? VNCoreMLModel(for: mlModel) else { continue }
-                return visionModel
+                if let existing = best, existing.score.rawValue >= support.rawValue {
+                    continue
+                }
+                best = (score: support, model: visionModel)
+                if support == .colorSpecificTraffic {
+                    return visionModel
+                }
             }
         }
-        return nil
+        return best?.model
     }
 
-    private static func isSupportedDetectorModel(_ model: MLModel) -> Bool {
+    private static func detectorSupport(for model: MLModel) -> DetectorSupport {
         guard let anyLabels = model.modelDescription.classLabels as? [Any] else {
-            return false
+            return .unsupported
         }
         let labels = anyLabels.compactMap { ($0 as? String)?.lowercased() }
-        guard !labels.isEmpty else { return false }
+        guard !labels.isEmpty else { return .unsupported }
 
-        return labels.contains { label in
-            let normalized = label.replacingOccurrences(of: "_", with: " ")
+        let normalizedLabels = labels.map {
+            $0.replacingOccurrences(of: "_", with: " ")
+        }
+
+        let hasTraffic = normalizedLabels.contains {
+            $0.contains("traffic") && $0.contains("light")
+        }
+        guard hasTraffic else { return .unsupported }
+
+        let hasColorSpecific = normalizedLabels.contains {
+            $0.contains("traffic") && $0.contains("light") && ($0.contains("red") || $0.contains("green") || $0.contains("yellow") || $0.contains("amber"))
+        }
+        return hasColorSpecific ? .colorSpecificTraffic : .genericTraffic
+    }
+
+    private static func preferredTrafficLightLabel(from labels: [VNClassificationObservation]) -> VNClassificationObservation? {
+        labels.first { label in
+            let normalized = label.identifier
+                .lowercased()
+                .replacingOccurrences(of: "_", with: " ")
             return normalized.contains("traffic") && normalized.contains("light")
         }
     }
