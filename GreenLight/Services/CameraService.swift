@@ -60,8 +60,8 @@ actor CameraService: CameraServiceProtocol {
 
         do {
             try device.lockForConfiguration()
-            device.activeVideoMinFrameDuration = CMTime(value: 1, timescale: 15)
-            device.activeVideoMaxFrameDuration = CMTime(value: 1, timescale: 15)
+            device.activeVideoMinFrameDuration = CMTime(value: 1, timescale: 30)
+            device.activeVideoMaxFrameDuration = CMTime(value: 1, timescale: 30)
             device.unlockForConfiguration()
         } catch {}
 

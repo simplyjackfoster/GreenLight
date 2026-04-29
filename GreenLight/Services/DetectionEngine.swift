@@ -9,6 +9,7 @@ actor DetectionEngine: DetectionEngineProtocol {
     private let resultsContinuation: AsyncStream<DetectionResult>.Continuation
     private var consumeTask: Task<Void, Never>?
     private var model: VNCoreMLModel?
+    private static let inferenceMinIntervalSeconds = 0.10
 
     init() {
         var cont: AsyncStream<DetectionResult>.Continuation!
@@ -23,8 +24,14 @@ actor DetectionEngine: DetectionEngineProtocol {
         let frames = await camera.frames
         consumeTask = Task { [weak self] in
             guard let self else { return }
+            var lastInferenceUptime = 0.0
             for await frame in frames {
                 if Task.isCancelled { break }
+                let now = ProcessInfo.processInfo.systemUptime
+                if now - lastInferenceUptime < Self.inferenceMinIntervalSeconds {
+                    continue
+                }
+                lastInferenceUptime = now
                 let pixelBuffer = frame.pixelBuffer
                 let result = Self.runInference(on: pixelBuffer, model: model)
                 await self.emit(result)
@@ -155,11 +162,25 @@ actor DetectionEngine: DetectionEngineProtocol {
             for computeUnits in computeUnitsOrder {
                 let config = MLModelConfiguration()
                 config.computeUnits = computeUnits
-                guard let mlModel = try? MLModel(contentsOf: modelURL, configuration: config),
-                      let visionModel = try? VNCoreMLModel(for: mlModel) else { continue }
+                guard let mlModel = try? MLModel(contentsOf: modelURL, configuration: config) else { continue }
+                guard isSupportedDetectorModel(mlModel) else { continue }
+                guard let visionModel = try? VNCoreMLModel(for: mlModel) else { continue }
                 return visionModel
             }
         }
         return nil
+    }
+
+    private static func isSupportedDetectorModel(_ model: MLModel) -> Bool {
+        guard let anyLabels = model.modelDescription.classLabels as? [Any] else {
+            return false
+        }
+        let labels = anyLabels.compactMap { ($0 as? String)?.lowercased() }
+        guard !labels.isEmpty else { return false }
+
+        return labels.contains { label in
+            let normalized = label.replacingOccurrences(of: "_", with: " ")
+            return normalized.contains("traffic") && normalized.contains("light")
+        }
     }
 }
